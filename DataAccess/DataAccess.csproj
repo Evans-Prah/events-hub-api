@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp2.2</TargetFramework>
+    <ServerGarbageCollection>false</ServerGarbageCollection>
+    <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
+    <PackageId>Acs.DataAccess</PackageId>
+    <RunPostBuildEvent>OnOutputUpdated</RunPostBuildEvent>
+    <Version>1.0.3</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.3" />
+    <PackageReference Include="Npgsql" Version="4.1.5" />
+  </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="SET filePath=bin\Release\netcoreapp2.2\publish\$(PackageId).$(PackageVersion).nupkg&#xD;&#xA;&#xD;&#xA;if exist %25filePath%25 (&#xD;&#xA;   dotnet nuget push %25filePath%25 --api-key oy2jrobzy6mo7d73e6aqiqj4qxdv6a6u5iryttrj7l2bde --source https://api.nuget.org/v3/index.json --skip-duplicate&#xD;&#xA;) else (&#xD;&#xA;    echo no nuget file found to publish&#xD;&#xA;)" />
+  </Target>
+
+</Project>
