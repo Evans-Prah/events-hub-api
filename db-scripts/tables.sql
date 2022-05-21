@@ -8,5 +8,7 @@ CREATE TABLE event."Events"
     "Category"    CHARACTER VARYING,
     "City"        CHARACTER VARYING,
     "Venue"       CHARACTER VARYING,
-    "Date"        TIMESTAMP WITHOUT TIME ZONE
+    "Date"        TIMESTAMP WITHOUT TIME ZONE,
+    "DateCreated" TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC'),
+    "DateModified" TIMESTAMP WITHOUT TIME ZONE
 );
