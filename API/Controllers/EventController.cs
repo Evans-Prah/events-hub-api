@@ -1,5 +1,6 @@
 ﻿using Entities;
 using Entities.Payload;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.EventService;
 using Services.FileLogger;
@@ -38,6 +39,7 @@ namespace API.Controllers
             }
         }
 
+        
         [HttpGet("[action]/{eventUuid}")]
         public async Task<ApiResponse> GetEventDetails(string eventUuid)
         {

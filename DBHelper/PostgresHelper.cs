@@ -1,6 +1,7 @@
 ﻿using DataAccess.Executors;
 using DataAccess.Models;
 using Entities.Event;
+using Entities.UserAccount;
 using NpgsqlTypes;
 
 namespace DBHelper
@@ -97,6 +98,48 @@ namespace DBHelper
             return response;
         }
 
+
+        #endregion
+
+
+        #region UserAccount
+
+        public async Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqAccountUuid", Type = NpgsqlDbType.Varchar, Value = accountUuid},
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+                new StoreProcedureParameter { Name = "reqDisplayName", Type = NpgsqlDbType.Varchar, Value = displayName},
+                new StoreProcedureParameter { Name = "reqPassword", Type = NpgsqlDbType.Varchar, Value = password},
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqPhoneNumber", Type = NpgsqlDbType.Varchar, Value = phoneNumber},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"RegisterUser\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+
+        public async Task<LoginResponse> UserLogin(string username, string password)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+                new StoreProcedureParameter { Name = "reqPassword", Type = NpgsqlDbType.Varchar, Value = password},
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<LoginResponse>(_connectionStrings.Default, "\"UserLogin\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new LoginResponse { ResponseMessage = "An error occurred" };
+        }
 
         #endregion
     }
