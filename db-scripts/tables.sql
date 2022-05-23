@@ -13,6 +13,11 @@ CREATE TABLE event."Events"
     "DateModified" TIMESTAMP WITHOUT TIME ZONE
 );
 
+ALTER TABLE event."Events"
+	ADD "IsCancelled" BOOLEAN DEFAULT FALSE,
+    ADD "HostId" INTEGER;
+
+
 
 DROP TABLE IF EXISTS event."UserAccount";
 CREATE TABLE event."UserAccount"
@@ -28,4 +33,17 @@ CREATE TABLE event."UserAccount"
     "LastLogin"   TIMESTAMP WITHOUT TIME ZONE,
     "IsActive"    BOOLEAN                     DEFAULT TRUE,
     "DateCreated" TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+
+ALTER TABLE event."UserAccount"
+	ADD "Image" CHARACTER VARYING;
+
+
+DROP TABLE IF EXISTS event."EventAttendees";
+CREATE TABLE event."EventAttendees"
+(
+    "Id"            BIGSERIAL PRIMARY KEY NOT NULL,
+    "UserAccountId" INTEGER,
+    "EventId"       INTEGER,
+    "IsHost"        BOOLEAN DEFAULT FALSE
 );

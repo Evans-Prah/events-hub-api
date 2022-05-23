@@ -17,6 +17,7 @@ builder.Configuration.Bind("Databases", dbConnection);
 builder.Services.AddSingleton(dbConnection);
 builder.Services.ConfigureJWT(builder.Configuration);
 builder.Services.AddScoped<IFileLogger, FileLogger>();
+
 builder.Services.AddSingleton<IStoredProcedureExecutor, NpgsqlStoredProcedureExecutor>();
 builder.Services.AddSingleton<IPostgresHelper, PostgresHelper>();
 builder.Services.AddSingleton<IEventService, EventService>();
@@ -24,6 +25,8 @@ builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
 
 
 builder.Services.AddCors();
+builder.Services.AddDistributedMemoryCache();
+builder.Services.AddSession();
 builder.Services.AddAuthentication();
 builder.Services.AddAuthorization();
 
@@ -46,6 +49,8 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
+app.UseSession();
+
 app.UseMiddleware<BearerTokenDecoderMiddleware>();
 
 app.UseCors(opt =>
@@ -53,9 +58,12 @@ app.UseCors(opt =>
     opt.AllowAnyHeader().AllowAnyMethod().AllowCredentials().WithOrigins("http://localhost:3000");
 });
 
+
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+app.UseSession();
 
 app.MapControllers();
 

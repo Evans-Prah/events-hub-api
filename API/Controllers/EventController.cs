@@ -1,6 +1,6 @@
-﻿using Entities;
+﻿using API.Extensions;
+using Entities;
 using Entities.Payload;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Services.EventService;
 using Services.FileLogger;
@@ -39,7 +39,7 @@ namespace API.Controllers
             }
         }
 
-        
+
         [HttpGet("[action]/{eventUuid}")]
         public async Task<ApiResponse> GetEventDetails(string eventUuid)
         {
@@ -68,7 +68,10 @@ namespace API.Controllers
 
             try
             {
-                var process = await _eventService.CreateEvent(payload.Title, payload.Description, payload.Category, payload.City, payload.Venue, payload.Date, logs);
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.CreateEvent(currentUser.Username, payload.Title, payload.Description, payload.Category, payload.City, payload.Venue, payload.Date, logs);
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
 
@@ -80,7 +83,7 @@ namespace API.Controllers
                 return new ApiResponse { Success = false, ResponseMessage = "A system error occured while creating the event, try again later." };
             }
         }
-        
+
         [HttpPost("[action]/{eventUuid}")]
         public async Task<ApiResponse> UpdateEvent([FromBody] UpdateEventPayload payload)
         {
@@ -91,7 +94,10 @@ namespace API.Controllers
 
             try
             {
-                var process = await _eventService.UpdateEvent(payload.EventUuid, payload.Title, payload.Description, payload.Category, payload.City, payload.Venue, payload.Date, logs);
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.UpdateEvent(currentUser.Username, payload.EventUuid, payload.Title, payload.Description, payload.Category, payload.City, payload.Venue, payload.Date, logs);
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
 
@@ -103,7 +109,7 @@ namespace API.Controllers
                 return new ApiResponse { Success = false, ResponseMessage = "A system error occured while updating the event, try again later." };
             }
         }
-        
+
         [HttpPost("[action]/{eventUuid}")]
         public async Task<ApiResponse> DeleteEvent(string eventUuid)
         {
@@ -112,11 +118,38 @@ namespace API.Controllers
 
             try
             {
-                var process = await _eventService.DeleteEvent(eventUuid, logs);
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.DeleteEvent(currentUser.Username, eventUuid, logs);
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
 
                 return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while deleting the event, try again later." };
+            }
+        }
+        
+        [HttpPost("[action]/{eventUuid}")]
+        public async Task<ApiResponse> AttendEvent(string eventUuid)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.UpdateEventAttendance(eventUuid, currentUser.Username, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage, Data = process.Data };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage, Data = process.Data };
             }
             catch (Exception e)
             {

@@ -19,11 +19,12 @@ namespace Services.EventService
 
         public async Task<EventDetails?> GetEventDetails(string eventUuid) => await _postgresHelper.GetEventDetails(eventUuid);
 
-        public async Task<ServiceResponse> CreateEvent(string title, string description, string category, string city, string venue, DateTime date, StringBuilder logs)
+        public async Task<ServiceResponse> CreateEvent(string username, string title, string description, string category, string city, string venue, DateTime date, StringBuilder logs)
         {
             logs.AppendLine("-- CreateEvent");
-            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { title, description, category, city, venue, date })}");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, title, description, category, city, venue, date })}");
 
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
             if (string.IsNullOrWhiteSpace(title)) return new ServiceResponse { Successful = false, ResponseMessage = "Title of event is required" };
             if (string.IsNullOrWhiteSpace(description)) return new ServiceResponse { Successful = false, ResponseMessage = "Provide description for the event" };
             if (string.IsNullOrWhiteSpace(category)) return new ServiceResponse { Successful = false, ResponseMessage = "Event category is reqired" };
@@ -33,17 +34,18 @@ namespace Services.EventService
 
             var eventUuid = Guid.NewGuid().ToString();
 
-            var dbResponse = await _postgresHelper.CreateEvent(eventUuid, title, description, category, city, venue, date);
+            var dbResponse = await _postgresHelper.CreateEvent(username, eventUuid, title, description, category, city, venue, date);
             logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
 
             return new ServiceResponse { Successful = true, ResponseMessage = "Event has been created successfully" };
         }
         
-        public async Task<ServiceResponse> UpdateEvent(string eventUuid, string title, string description, string category, string city, string venue, DateTime date, StringBuilder logs)
+        public async Task<ServiceResponse> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date, StringBuilder logs)
         {
             logs.AppendLine("-- UpdateEvent");
-            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { eventUuid, title, description, category, city, venue, date })}");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, eventUuid, title, description, category, city, venue, date })}");
 
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
             if (string.IsNullOrWhiteSpace(eventUuid)) return new ServiceResponse { Successful = false, ResponseMessage = "Request Identifer (EventUuid) for event is required" };
             if (string.IsNullOrWhiteSpace(title)) return new ServiceResponse { Successful = false, ResponseMessage = "Title of event is required" };
             if (string.IsNullOrWhiteSpace(description)) return new ServiceResponse { Successful = false, ResponseMessage = "Provide description for the event" };
@@ -52,7 +54,7 @@ namespace Services.EventService
             if (string.IsNullOrWhiteSpace(venue)) return new ServiceResponse { Successful = false, ResponseMessage = "Venue for the event is required" };
             if (date < DateTime.Now) return new ServiceResponse { Successful = false, ResponseMessage = "Date and time for event cannot be less than current date and time" };
 
-            var dbResponse = await _postgresHelper.UpdateEvent(eventUuid, title, description, category, city, venue, date);
+            var dbResponse = await _postgresHelper.UpdateEvent(username, eventUuid, title, description, category, city, venue, date);
             logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
 
             if(!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
@@ -60,19 +62,40 @@ namespace Services.EventService
             return new ServiceResponse { Successful = true, ResponseMessage = "Event has been updated successfully" };
         }
         
-        public async Task<ServiceResponse> DeleteEvent(string eventUuid, StringBuilder logs)
+        public async Task<ServiceResponse> DeleteEvent(string username, string eventUuid, StringBuilder logs)
         {
             logs.AppendLine("-- DeleteEvent");
-            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { eventUuid })}");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, eventUuid })}");
 
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
             if (string.IsNullOrWhiteSpace(eventUuid)) return new ServiceResponse { Successful = false, ResponseMessage = "Request Identifer (EventUuid) for event is required" };
             
-            var dbResponse = await _postgresHelper.DeleteEvent(eventUuid);
+            var dbResponse = await _postgresHelper.DeleteEvent(username, eventUuid);
             logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
 
             if(!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
 
             return new ServiceResponse { Successful = true, ResponseMessage = "Event has been deleted successfully" };
+        }
+        
+        public async Task<ServiceResponse> UpdateEventAttendance(string eventUuid, string username, StringBuilder logs)
+        {
+            logs.AppendLine("-- UpdateEventAttendance");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { eventUuid, username })}");
+
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (string.IsNullOrWhiteSpace(eventUuid)) return new ServiceResponse { Successful = false, ResponseMessage = "Request Identifer (EventUuid) for event is required" };
+            
+            var dbResponse = await _postgresHelper.UpdateEventAttendance(eventUuid, username);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if(!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 400) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+            if(!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 402) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+            
+            if(!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 100) return new ServiceResponse { Successful = true, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+            if(!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 102) return new ServiceResponse { Successful = true, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "You have been added to the event attendees", Data = dbResponse.ResponseCode };
         }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Entities;
+﻿using API.Extensions;
+using Entities;
 using Entities.Payload;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -54,6 +55,8 @@ namespace API.Controllers
                 var process = await _accountService.UserLogin(payload.Username, payload.Password, logs);
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                SessionHelper.SetCurrentUser(HttpContext, process.Data);
 
                 return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage, Data = process.Data };
             }

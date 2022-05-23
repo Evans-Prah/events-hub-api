@@ -3,7 +3,7 @@
     public class LoginResponse
     {
         public string? ResponseMessage { get; set; }
-        public string? Username { get; set; }
+        public string Username { get; set; }
         public string? DisplayName { get; set; }
         public string? Image { get; set; }
         public DateTime? LastLogin { get; set; }

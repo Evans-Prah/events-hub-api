@@ -1,5 +1,6 @@
 ﻿using DataAccess.Executors;
 using DataAccess.Models;
+using Entities;
 using Entities.Event;
 using Entities.UserAccount;
 using NpgsqlTypes;
@@ -35,12 +36,13 @@ namespace DBHelper
             return null;
         }
 
-        public async Task<string> CreateEvent(string eventUuid, string title, string description, string category, string city, string venue, DateTime date)
+        public async Task<string> CreateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date)
         {
             string response = "";
 
             var parameters = new List<StoreProcedureParameter>
             {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
                 new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid},
                 new StoreProcedureParameter { Name = "reqTitle", Type = NpgsqlDbType.Varchar, Value = title},
                 new StoreProcedureParameter { Name = "reqDescription", Type = NpgsqlDbType.Varchar, Value = description},
@@ -58,12 +60,13 @@ namespace DBHelper
             return response;
         }
         
-        public async Task<string> UpdateEvent(string eventUuid, string title, string description, string category, string city, string venue, DateTime date)
+        public async Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date)
         {
             string response = "";
 
             var parameters = new List<StoreProcedureParameter>
             {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
                 new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid},
                 new StoreProcedureParameter { Name = "reqTitle", Type = NpgsqlDbType.Varchar, Value = title},
                 new StoreProcedureParameter { Name = "reqDescription", Type = NpgsqlDbType.Varchar, Value = description},
@@ -81,12 +84,13 @@ namespace DBHelper
             return response;
         }
         
-        public async Task<string> DeleteEvent(string eventUuid)
+        public async Task<string> DeleteEvent(string username, string eventUuid)
         {
             string response = "";
 
             var parameters = new List<StoreProcedureParameter>
             {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
                 new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid}
             };
 
@@ -96,6 +100,21 @@ namespace DBHelper
             });
 
             return response;
+        }
+        
+        public async Task<DbResponse> UpdateEventAttendance(string eventUuid, string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid},
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<DbResponse>(_connectionStrings.Default, "\"UpdateEventAttendance\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new DbResponse { Message = "An error occurred" };
         }
 
 
