@@ -11,15 +11,20 @@ CREATE FUNCTION event."GetEventAttendees"("reqEventId" INTEGER)
 AS
 $$
 BEGIN
-    RETURN QUERY SELECT ua."Username",
-                        ua."DisplayName",
-                        ua."Bio",
-                        ua."Image"
+    RETURN QUERY SELECT DISTINCT ua."Username",
+                                 ua."DisplayName",
+                                 ua."Bio",
+                                 (SELECT ph."Url"
+                                  FROM event."Photos" ph
+                                  WHERE ph."IsMain" = TRUE
+                                    AND ea."UserAccountId" = ph."UserAccountId")
                  FROM event."UserAccount" ua
                           LEFT JOIN event."EventAttendees" ea ON ea."UserAccountId" = ua."AccountId"
+                          LEFT JOIN event."Photos" p ON ea."UserAccountId" = p."UserAccountId"
                  WHERE ea."EventId" = "reqEventId";
 END
 $$;
+
 
 DROP FUNCTION IF EXISTS event."GetEvents"();
 CREATE FUNCTION event."GetEvents"()
@@ -361,13 +366,15 @@ CREATE FUNCTION event."UserLogin"("reqUsername" CHARACTER VARYING, "reqPassword"
                 "ResponseMessage" CHARACTER VARYING,
                 "Username"        CHARACTER VARYING,
                 "DisplayName"     CHARACTER VARYING,
+                "ProfilePicture"  CHARACTER VARYING,
                 "LastLogin"       TIMESTAMP WITHOUT TIME ZONE
             )
     LANGUAGE plpgsql
 AS
 $$
 DECLARE
-    userRecord RECORD;
+    userRecord  RECORD;
+    _user_photo CHARACTER VARYING;
 BEGIN
 
     SELECT uc."IsActive",
@@ -385,6 +392,7 @@ BEGIN
         RETURN QUERY SELECT 'Invalid login credentials, check and try again'::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
                             NULL::TIMESTAMP WITHOUT TIME ZONE;
         RETURN;
     END IF;
@@ -393,15 +401,232 @@ BEGIN
         RETURN QUERY SELECT 'Your account is disabled, contact support for further assistance or create a new account'::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
                             NULL::TIMESTAMP WITHOUT TIME ZONE;
         RETURN;
     END IF;
 
     UPDATE event."UserAccount" uc SET "LastLogin" = NOW() AT TIME ZONE 'UTC' WHERE "AccountId" = userRecord."AccountId";
 
+    SELECT p."Url"
+    INTO _user_photo
+    FROM event."Photos" p
+    WHERE p."IsMain" = TRUE
+      AND p."UserAccountId" = userRecord."AccountId"::INTEGER
+    LIMIT 1;
+
     RETURN QUERY SELECT ''::CHARACTER VARYING,
                         userRecord."Username",
                         userRecord."DisplayName",
+                        _user_photo,
                         userRecord."LastLogin";
+END
+$$;
+
+SELECT *
+FROM event."UserLogin"('jane_doe', '1ZotORxtJdDxwKp7Cr8IrXtxa205wkeZup+oycoTRKc=');
+
+DROP FUNCTION IF EXISTS event."UploadImage"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."UploadImage"("reqUsername" CHARACTER VARYING, "reqPublicId" CHARACTER VARYING,
+                                    "reqFile" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "ResponseMessage" CHARACTER VARYING,
+                "PublicId"        CHARACTER VARYING,
+                "Url"             CHARACTER VARYING,
+                "IsMainPhoto"     BOOLEAN
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id       INTEGER;
+    _is_main       BOOLEAN;
+    _public_id     CHARACTER VARYING;
+    _url           CHARACTER VARYING;
+    _is_main_photo BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN QUERY SELECT 'User account does not exist, check and try again'::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            FALSE;
+        RETURN;
+    END IF;
+
+
+    INSERT INTO event."Photos"("PublicId", "UserAccountId", "Url") VALUES ("reqPublicId", _user_id, "reqFile");
+
+    SELECT e."IsMain" INTO _is_main FROM event."Photos" e WHERE e."UserAccountId" = _user_id;
+
+    IF NOT _is_main THEN
+        UPDATE event."Photos" p SET "IsMain" = true WHERE p."PublicId" = "reqPublicId";
+    END IF;
+
+    SELECT ph."PublicId", ph."Url", ph."IsMain"
+    INTO _public_id, _url, _is_main_photo
+    FROM event."Photos" ph
+    WHERE ph."PublicId" = "reqPublicId"
+    LIMIT 1;
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING, _public_id, _url, _is_main_photo;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."DeleteImage"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."DeleteImage"("reqUsername" CHARACTER VARYING, "reqPublicId" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id       INTEGER;
+    _public_id     CHARACTER VARYING;
+    _is_main_photo BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN 'User account does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    SELECT ph."PublicId", ph."IsMain"
+    INTO _public_id, _is_main_photo
+    FROM event."Photos" ph
+    WHERE ph."PublicId" = "reqPublicId"
+      AND ph."UserAccountId" = _user_id
+    LIMIT 1;
+
+    IF _public_id IS NULL THEN
+        RETURN 'Image does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    IF _is_main_photo = TRUE THEN
+        RETURN 'You cannot delete your main photo'::CHARACTER VARYING;
+    END IF;
+
+    DELETE FROM event."Photos" p WHERE p."PublicId" = "reqPublicId" AND p."UserAccountId" = _user_id;
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."SetProfilePicture"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."SetProfilePicture"("reqUsername" CHARACTER VARYING, "reqPublicId" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id             INTEGER;
+    _public_id           CHARACTER VARYING;
+    _current_profile_pic BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN 'User account does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    SELECT ph."PublicId"
+    INTO _public_id
+    FROM event."Photos" ph
+    WHERE ph."PublicId" = "reqPublicId"
+      AND ph."UserAccountId" = _user_id
+    LIMIT 1;
+
+    IF _public_id IS NULL THEN
+        RETURN 'Image does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    SELECT p."IsMain"
+    INTO _current_profile_pic
+    FROM event."Photos" p
+    WHERE p."UserAccountId" = _user_id
+      AND p."IsMain" = TRUE
+    LIMIT 1;
+
+    IF _current_profile_pic = TRUE THEN
+        UPDATE event."Photos" SET "IsMain" = FALSE WHERE "IsMain" = TRUE AND "UserAccountId" = _user_id;
+    END IF;
+
+    UPDATE event."Photos" SET "IsMain" = TRUE WHERE "PublicId" = "reqPublicId" AND "UserAccountId" = _user_id;
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetUserPhotos"(INTEGER);
+CREATE FUNCTION event."GetUserPhotos"("reqAccountId" INTEGER)
+    RETURNS TABLE
+            (
+                "PublicId"    CHARACTER VARYING,
+                "Url"         CHARACTER VARYING,
+                "IsMainPhoto" BOOLEAN
+            )
+    LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT p."PublicId", p."Url", p."IsMain"
+                 FROM event."Photos" p
+                 WHERE p."UserAccountId" = "reqAccountId";
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetUserProfile"(CHARACTER VARYING);
+CREATE FUNCTION event."GetUserProfile"("reqUsername" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "ResponseMessage" CHARACTER VARYING,
+                "Username"        CHARACTER VARYING,
+                "DisplayName"     CHARACTER VARYING,
+                "Bio"             CHARACTER VARYING,
+                "Image"           CHARACTER VARYING,
+                "Photos"          JSONB
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN QUERY SELECT CONCAT("reqUsername",
+                                   ' does not match any user profile, check and try again')::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::JSONB;
+        RETURN;
+    END IF;
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING,
+                        ua."Username",
+                        ua."DisplayName",
+                        ua."Bio",
+                        (SELECT p."Url"
+                         FROM event."Photos" p
+                         WHERE p."UserAccountId" = _user_id
+                           AND p."IsMain" = TRUE
+                         LIMIT 1),
+                        (SELECT jsonb_agg(v) FROM event."GetUserPhotos"(_user_id) v)::JSONB
+                 FROM event."UserAccount" ua
+                 WHERE ua."Username" = "reqUsername"
+                 LIMIT 1;
+
 END
 $$;

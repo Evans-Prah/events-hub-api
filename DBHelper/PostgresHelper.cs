@@ -2,6 +2,7 @@
 using DataAccess.Models;
 using Entities;
 using Entities.Event;
+using Entities.Profile;
 using Entities.UserAccount;
 using NpgsqlTypes;
 
@@ -59,7 +60,7 @@ namespace DBHelper
 
             return response;
         }
-        
+
         public async Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date)
         {
             string response = "";
@@ -83,7 +84,7 @@ namespace DBHelper
 
             return response;
         }
-        
+
         public async Task<string> DeleteEvent(string username, string eventUuid)
         {
             string response = "";
@@ -101,7 +102,7 @@ namespace DBHelper
 
             return response;
         }
-        
+
         public async Task<DbResponse> UpdateEventAttendance(string eventUuid, string username)
         {
             var parameters = new List<StoreProcedureParameter>
@@ -158,6 +159,81 @@ namespace DBHelper
             if (response.Count > 0) return response[0];
 
             return new LoginResponse { ResponseMessage = "An error occurred" };
+        }
+
+        #endregion
+
+        #region ImageUpload
+
+        public async Task<ImageUploadDbResponse> UploadImage(string username, string publicId, string file)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+                new StoreProcedureParameter { Name = "reqPublicId", Type = NpgsqlDbType.Varchar, Value = publicId},
+                new StoreProcedureParameter { Name = "reqFile", Type = NpgsqlDbType.Varchar, Value = file},
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<ImageUploadDbResponse>(_connectionStrings.Default, "\"UploadImage\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new ImageUploadDbResponse { ResponseMessage = "An error occurred" };
+        }
+
+        public async Task<string> DeleteImage(string username, string publicId)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+               new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+               new StoreProcedureParameter { Name = "reqPublicId", Type = NpgsqlDbType.Varchar, Value = publicId},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"DeleteImage\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+        
+        public async Task<string> SetProfilePicture(string username, string publicId)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+               new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+               new StoreProcedureParameter { Name = "reqPublicId", Type = NpgsqlDbType.Varchar, Value = publicId},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"SetProfilePicture\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+
+        #endregion
+
+
+        #region UserProfile
+
+        public async Task<UserProfile?> GetUserProfile(string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter {Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<UserProfile>(_connectionStrings.Default, "\"GetUserProfile\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return null;
         }
 
         #endregion

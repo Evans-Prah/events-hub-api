@@ -2,10 +2,14 @@ using API.Extensions;
 using DataAccess.Executors;
 using DataAccess.Models;
 using DBHelper;
+using Entities.Cloudinary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
+using Services.CloudinaryService;
 using Services.EventService;
 using Services.FileLogger;
+using Services.ImageUpload;
+using Services.ProfileService;
 using Services.UserAccount;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -22,7 +26,10 @@ builder.Services.AddSingleton<IStoredProcedureExecutor, NpgsqlStoredProcedureExe
 builder.Services.AddSingleton<IPostgresHelper, PostgresHelper>();
 builder.Services.AddSingleton<IEventService, EventService>();
 builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
-
+builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
+builder.Services.AddScoped<IImageUploadService, ImageUploadService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 
 builder.Services.AddCors();
 builder.Services.AddDistributedMemoryCache();

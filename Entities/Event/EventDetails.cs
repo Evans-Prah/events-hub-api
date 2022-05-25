@@ -1,6 +1,4 @@
-﻿using Entities.UserAccount;
-
-namespace Entities.Event
+﻿namespace Entities.Event
 {
     public class EventDetails
     {
@@ -13,6 +11,6 @@ namespace Entities.Event
         public DateTime Date { get; set; }
         public string? HostUsername { get; set; }
         public bool IsCancelled { get; set; }
-        public List<UserProfile>? Attendees { get; set; }
+        public List<AttendeesProfile>? Attendees { get; set; }
     }
 }

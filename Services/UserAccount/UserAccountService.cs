@@ -78,7 +78,7 @@ namespace Services.UserAccount
                 {
                     Username = dbResponse.Username,
                     DisplayName = dbResponse.DisplayName,
-                    Image = null,
+                    ProfilePicture = dbResponse.ProfilePicture,
                     LastLogin = dbResponse.LastLogin,
                     Token = tokenInfo
                 }

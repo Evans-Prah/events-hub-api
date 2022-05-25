@@ -9,14 +9,11 @@ CREATE TABLE event."Events"
     "City"         CHARACTER VARYING,
     "Venue"        CHARACTER VARYING,
     "Date"         TIMESTAMP WITHOUT TIME ZONE,
+    "IsCancelled"  BOOLEAN                     DEFAULT FALSE,
+    "HostId"       INTEGER,
     "DateCreated"  TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC'),
     "DateModified" TIMESTAMP WITHOUT TIME ZONE
 );
-
-ALTER TABLE event."Events"
-	ADD "IsCancelled" BOOLEAN DEFAULT FALSE,
-    ADD "HostId" INTEGER;
-
 
 
 DROP TABLE IF EXISTS event."UserAccount";
@@ -35,9 +32,6 @@ CREATE TABLE event."UserAccount"
     "DateCreated" TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 
-ALTER TABLE event."UserAccount"
-	ADD "Image" CHARACTER VARYING;
-
 
 DROP TABLE IF EXISTS event."EventAttendees";
 CREATE TABLE event."EventAttendees"
@@ -46,4 +40,13 @@ CREATE TABLE event."EventAttendees"
     "UserAccountId" INTEGER,
     "EventId"       INTEGER,
     "IsHost"        BOOLEAN DEFAULT FALSE
+);
+
+DROP TABLE IF EXISTS event."Photos";
+CREATE TABLE event."Photos"
+(
+    "PublicId"      CHARACTER VARYING PRIMARY KEY,
+    "UserAccountId" INTEGER,
+    "Url"           CHARACTER VARYING,
+    "IsMain"        BOOLEAN DEFAULT FALSE
 );
