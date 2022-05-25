@@ -17,6 +17,7 @@ namespace DBHelper
         Task<string> SetProfilePicture(string username, string publicId);
         Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date);
         Task<DbResponse> UpdateEventAttendance(string eventUuid, string username);
+        Task<string> UpdateUserProfile(string username, string displayName, string bio);
         Task<ImageUploadDbResponse> UploadImage(string username, string publicId, string file);
         Task<LoginResponse> UserLogin(string username, string password);
     }

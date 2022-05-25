@@ -1,6 +1,8 @@
 ﻿using DBHelper;
 using Entities;
 using Entities.Profile;
+using Newtonsoft.Json;
+using System.Text;
 
 namespace Services.ProfileService
 {
@@ -35,6 +37,21 @@ namespace Services.ProfileService
                     Photos = dbResponse?.Photos
                 }
             };
+        }
+
+        public async Task<ServiceResponse> UpdateUserProfile(string username, string displayName, string bio, StringBuilder logs)
+        {
+            logs.AppendLine("-- UpdateUserProfile");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, displayName, bio })}");
+
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (string.IsNullOrWhiteSpace(displayName)) return new ServiceResponse { Successful = false, ResponseMessage = "Your display name is required" };
+            if (string.IsNullOrWhiteSpace(bio)) return new ServiceResponse { Successful = false, ResponseMessage = "Your bio is required" };
+
+            var dbResponse = await _postgresHelper.UpdateUserProfile(username, displayName, bio);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "User profile updated successfully" };
         }
     }
 }

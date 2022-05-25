@@ -1,8 +1,10 @@
 ﻿using API.Extensions;
 using Entities;
+using Entities.Payload;
 using Microsoft.AspNetCore.Mvc;
 using Services.FileLogger;
 using Services.ProfileService;
+using System.Text;
 
 namespace API.Controllers
 {
@@ -38,6 +40,31 @@ namespace API.Controllers
             {
                 _logger.LogError(e);
                 return new ApiResponse { Success = false, ResponseMessage = "A system error occured while fetching user profile, try again later." };
+            }
+        }
+        
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> UpdateUserProfile([FromBody] UpdateUserProfile payload)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var request = await _profileService.UpdateUserProfile(currentUser.Username, payload.DisplayName, payload.Bio, logs);
+
+                if (!request.Successful) return new ApiResponse { Success = false, ResponseMessage = request.ResponseMessage};
+
+                return new ApiResponse { Success = true, ResponseMessage = request.ResponseMessage, Data = request.Data };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while updating user profile, try again later." };
             }
         }
     }

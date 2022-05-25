@@ -423,8 +423,7 @@ BEGIN
 END
 $$;
 
-SELECT *
-FROM event."UserLogin"('jane_doe', '1ZotORxtJdDxwKp7Cr8IrXtxa205wkeZup+oycoTRKc=');
+
 
 DROP FUNCTION IF EXISTS event."UploadImage"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);
 CREATE FUNCTION event."UploadImage"("reqUsername" CHARACTER VARYING, "reqPublicId" CHARACTER VARYING,
@@ -628,5 +627,30 @@ BEGIN
                  WHERE ua."Username" = "reqUsername"
                  LIMIT 1;
 
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."UpdateUserProfile"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."UpdateUserProfile"("reqUsername" CHARACTER VARYING, "reqDisplayName" CHARACTER VARYING,
+                                          "reqBio" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN 'User account does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+
+    UPDATE event."UserAccount" SET "DisplayName" = "reqDisplayName", "Bio" = "reqBio" WHERE "AccountId" = _user_id;
+
+    RETURN ''::CHARACTER VARYING;
 END
 $$;

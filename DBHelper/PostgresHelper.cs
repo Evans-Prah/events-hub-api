@@ -236,6 +236,25 @@ namespace DBHelper
             return null;
         }
 
+        public async Task<string> UpdateUserProfile(string username, string displayName, string bio)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+               new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+               new StoreProcedureParameter { Name = "reqDisplayName", Type = NpgsqlDbType.Varchar, Value = displayName},
+               new StoreProcedureParameter { Name = "reqBio", Type = NpgsqlDbType.Varchar, Value = bio},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"UpdateUserProfile\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+
         #endregion
     }
 }
