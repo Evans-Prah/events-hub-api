@@ -4,6 +4,7 @@ using Entities;
 using Entities.Event;
 using Entities.Profile;
 using Entities.UserAccount;
+using Entities.UserFollowing;
 using NpgsqlTypes;
 
 namespace DBHelper
@@ -118,6 +119,36 @@ namespace DBHelper
             return new DbResponse { Message = "An error occurred" };
         }
 
+
+        public async Task<string> AddEventComment(string username, string eventUuid, string comment)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+                new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid},
+                new StoreProcedureParameter { Name = "reqComment", Type = NpgsqlDbType.Varchar, Value = comment},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"AddEventComment\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+
+        public async Task<List<EventComment>> GetEventComments(string eventUuid)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter {Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid}
+            };
+
+            return await _storedProcedureExecutor.ExecuteStoredProcedure<EventComment>(_connectionStrings.Default, "\"GetEventComments\"", parameters);
+
+        }
 
         #endregion
 
@@ -253,6 +284,48 @@ namespace DBHelper
             });
 
             return response;
+        }
+
+        #endregion
+
+
+        #region UserFollowing
+
+        public async Task<FollowingDbResponse> FollowOrUnfollowUser(string observerUsername, string targetUsername)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqObserverUsername", Type = NpgsqlDbType.Varchar, Value = observerUsername},
+                new StoreProcedureParameter { Name = "reqTargetUsername", Type = NpgsqlDbType.Varchar, Value = targetUsername}
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<FollowingDbResponse>(_connectionStrings.Default, "\"FollowOrUnfollowUser\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new FollowingDbResponse { ResponseMessage = "An error occurred" };
+        }
+
+        public async Task<List<Following>> GetUserFollowings(string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter {Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            return await _storedProcedureExecutor.ExecuteStoredProcedure<Following>(_connectionStrings.Default, "\"GetUserFollowings\"", parameters);
+
+        }
+        
+        public async Task<List<Followers>> GetUserFollowers(string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter {Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            return await _storedProcedureExecutor.ExecuteStoredProcedure<Followers>(_connectionStrings.Default, "\"GetUserFollowers\"", parameters);
+
         }
 
         #endregion

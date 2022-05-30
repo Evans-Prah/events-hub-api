@@ -1,8 +1,9 @@
-﻿namespace Entities.Profile
+﻿using Entities.Profile;
+
+namespace Entities.UserFollowing
 {
-    public class UserProfile
+    public class Following
     {
-        public string? ResponseMessage { get; set; }
         public string? Username { get; set; }
         public string? DisplayName { get; set; }
         public string? Bio { get; set; }

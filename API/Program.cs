@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Mvc.Authorization;
 using Services.CloudinaryService;
 using Services.EventService;
 using Services.FileLogger;
+using Services.FollowService;
 using Services.ImageUpload;
 using Services.ProfileService;
 using Services.UserAccount;
@@ -29,6 +30,7 @@ builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
 builder.Services.AddScoped<IImageUploadService, ImageUploadService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IFollowingService, FollowingService>();
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 
 builder.Services.AddCors();

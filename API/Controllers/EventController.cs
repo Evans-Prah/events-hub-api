@@ -157,5 +157,47 @@ namespace API.Controllers
                 return new ApiResponse { Success = false, ResponseMessage = "A system error occured while deleting the event, try again later." };
             }
         }
+        
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> AddEventComment([FromBody] EventCommentPayload payload)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.AddEventComment(payload.Username, payload.EventUuid, payload.Comment, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage, Data = process.Data };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while commenting on the event, try again later." };
+            }
+        }
+
+        [HttpGet("[action]/{eventUuid}")]
+        public async Task<ApiResponse> GetEventComments(string eventUuid)
+        {
+            try
+            {
+                var events = await _eventService.GetEventComments(eventUuid);
+
+                if (events == null || !events.Any()) return new ApiResponse { Success = false, ResponseMessage = "There are no comments on this event at the moment" };
+
+                return new ApiResponse { Success = true, ResponseMessage = "Event comments fetched successfully", Data = events };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while fetching comments for event, try again later." };
+            }
+        }
     }
 }

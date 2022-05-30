@@ -97,5 +97,24 @@ namespace Services.EventService
 
             return new ServiceResponse { Successful = true, ResponseMessage = "You have been added to the event attendees", Data = dbResponse.ResponseCode };
         }
+
+        public async Task<ServiceResponse> AddEventComment(string username, string eventUuid, string comment, StringBuilder logs)
+        {
+            logs.AppendLine("-- AddEventComment");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, eventUuid, comment })}");
+
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (string.IsNullOrWhiteSpace(eventUuid)) return new ServiceResponse { Successful = false, ResponseMessage = "Request Identifer (EventUuid) for event is required" };
+            if (string.IsNullOrWhiteSpace(comment)) return new ServiceResponse { Successful = false, ResponseMessage = "Comment is required" };
+
+            var dbResponse = await _postgresHelper.AddEventComment(username, eventUuid, comment);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "Comment added successfully" };
+        }
+
+        public async Task<List<EventComment>> GetEventComments(string eventUuid) => await _postgresHelper.GetEventComments(eventUuid);
     }
 }

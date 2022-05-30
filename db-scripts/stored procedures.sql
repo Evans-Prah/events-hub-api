@@ -462,7 +462,7 @@ BEGIN
     SELECT e."IsMain" INTO _is_main FROM event."Photos" e WHERE e."UserAccountId" = _user_id;
 
     IF NOT _is_main THEN
-        UPDATE event."Photos" p SET "IsMain" = true WHERE p."PublicId" = "reqPublicId";
+        UPDATE event."Photos" p SET "IsMain" = TRUE WHERE p."PublicId" = "reqPublicId";
     END IF;
 
     SELECT ph."PublicId", ph."Url", ph."IsMain"
@@ -591,6 +591,8 @@ CREATE FUNCTION event."GetUserProfile"("reqUsername" CHARACTER VARYING)
                 "DisplayName"     CHARACTER VARYING,
                 "Bio"             CHARACTER VARYING,
                 "Image"           CHARACTER VARYING,
+                "FollowingCount"  BIGINT,
+                "FollowersCount"  BIGINT,
                 "Photos"          JSONB
             )
     LANGUAGE plpgsql
@@ -609,6 +611,8 @@ BEGIN
                             NULL::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
                             NULL::CHARACTER VARYING,
+                            0::BIGINT,
+                            0::BIGINT,
                             NULL::JSONB;
         RETURN;
     END IF;
@@ -622,8 +626,15 @@ BEGIN
                          WHERE p."UserAccountId" = _user_id
                            AND p."IsMain" = TRUE
                          LIMIT 1),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" f
+                         WHERE f."ObserverAccountId" = ua."AccountId"),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" ufo
+                         WHERE ufo."TargetAccountId" = ua."AccountId"),
                         (SELECT jsonb_agg(v) FROM event."GetUserPhotos"(_user_id) v)::JSONB
                  FROM event."UserAccount" ua
+                          LEFT JOIN event."UserFollowings" uf ON uf."ObserverAccountId" = ua."AccountId"
                  WHERE ua."Username" = "reqUsername"
                  LIMIT 1;
 
@@ -652,5 +663,217 @@ BEGIN
     UPDATE event."UserAccount" SET "DisplayName" = "reqDisplayName", "Bio" = "reqBio" WHERE "AccountId" = _user_id;
 
     RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."AddEventComment"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."AddEventComment"("reqUsername" CHARACTER VARYING, "reqEventUuid" CHARACTER VARYING,
+                                        "reqComment" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id  INTEGER;
+    _event_id INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    SELECT ev."Id"::INTEGER INTO _event_id FROM event."Events" ev WHERE ev."EventUuid" = "reqEventUuid" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN 'User account does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    IF _event_id IS NULL THEN
+        RETURN 'Event does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    INSERT INTO event."EventComments"("UserAccountId", "EventId", "Comment") VALUES (_user_id, _event_id, "reqComment");
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetEventComments"(CHARACTER VARYING);
+CREATE FUNCTION event."GetEventComments"("reqEventUuid" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Author"  CHARACTER VARYING,
+                "Comment" CHARACTER VARYING
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _event_id INTEGER;
+BEGIN
+
+    SELECT ev."Id"::INTEGER INTO _event_id FROM event."Events" ev WHERE ev."EventUuid" = "reqEventUuid" LIMIT 1;
+
+    RETURN QUERY SELECT uc."Username",
+                        ec."Comment"
+                 FROM event."EventComments" ec
+                          LEFT JOIN event."UserAccount" uc ON uc."AccountId" = ec."UserAccountId"
+                 WHERE ec."EventId" = _event_id
+                 ORDER BY ec."DateCreated";
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."FollowOrUnfollowUser"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."FollowOrUnfollowUser"("reqObserverUsername" CHARACTER VARYING,
+                                             "reqTargetUsername" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "ResponseMessage" CHARACTER VARYING,
+                "ResponseCode"    INTEGER
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _observer_user_id INTEGER;
+    _target_user_id   INTEGER;
+    _following        BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER
+    INTO _observer_user_id
+    FROM event."UserAccount" u
+    WHERE u."Username" = "reqObserverUsername"
+    LIMIT 1;
+
+    SELECT U."AccountId"::INTEGER
+    INTO _target_user_id
+    FROM event."UserAccount" u
+    WHERE u."Username" = "reqTargetUsername"
+    LIMIT 1;
+
+    IF _observer_user_id IS NULL THEN
+        RETURN QUERY SELECT 'User account does not exist, check and try again'::CHARACTER VARYING,
+                            300; -- Code 400 -> Observer account does not exist
+        RETURN;
+    END IF;
+
+    IF _target_user_id IS NULL THEN
+        RETURN QUERY SELECT CONCAT("reqTargetUsername", ' does not exist, check and try again')::CHARACTER VARYING,
+                            301; -- Code 400 -> Target account does not exist
+        RETURN;
+    END IF;
+
+    SELECT uf."Status"
+    INTO _following
+    FROM event."UserFollowings" uf
+    WHERE uf."ObserverAccountId" = _observer_user_id
+      AND uf."TargetAccountId" = _target_user_id
+    LIMIT 1;
+
+    IF _following = TRUE THEN
+        DELETE
+        FROM event."UserFollowings"
+        WHERE "ObserverAccountId" = _observer_user_id
+          AND "TargetAccountId" = _target_user_id;
+        RETURN QUERY SELECT CONCAT('You have unfollowed ', "reqTargetUsername")::CHARACTER VARYING,
+                            100; -- Code 100 -> Unfollowed
+        RETURN;
+    END IF;
+
+    INSERT INTO event."UserFollowings"("ObserverAccountId", "TargetAccountId", "Status")
+    VALUES (_observer_user_id, _target_user_id, TRUE);
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING, 101; -- Code 101 -> Following
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetUserFollowings"(CHARACTER VARYING);
+CREATE FUNCTION event."GetUserFollowings"("reqUsername" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Username"       CHARACTER VARYING,
+                "DisplayName"    CHARACTER VARYING,
+                "Bio"            CHARACTER VARYING,
+                "Image"          CHARACTER VARYING,
+                "FollowingCount" BIGINT,
+                "FollowersCount" BIGINT,
+                "Photos"         JSONB
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+
+    RETURN QUERY SELECT ua."Username",
+                        ua."DisplayName",
+                        ua."Bio",
+                        (SELECT p."Url"
+                         FROM event."Photos" p
+                         WHERE p."UserAccountId" = uf."TargetAccountId"
+                           AND p."IsMain" = TRUE
+                         LIMIT 1),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" f
+                         WHERE f."ObserverAccountId" = ua."AccountId"),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" ufo
+                         WHERE ufo."TargetAccountId" = ua."AccountId"),
+                        (SELECT jsonb_agg(v) FROM event."GetUserPhotos"(uf."TargetAccountId") v)::JSONB
+                 FROM event."UserAccount" ua
+                          LEFT JOIN event."UserFollowings" uf ON uf."TargetAccountId" = ua."AccountId"
+                 WHERE uf."ObserverAccountId" = _user_id;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetUserFollowers"(CHARACTER VARYING);
+CREATE FUNCTION event."GetUserFollowers"("reqUsername" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Username"       CHARACTER VARYING,
+                "DisplayName"    CHARACTER VARYING,
+                "Bio"            CHARACTER VARYING,
+                "Image"          CHARACTER VARYING,
+                "FollowingCount" BIGINT,
+                "FollowersCount" BIGINT,
+                "Photos"         JSONB
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+
+    RETURN QUERY SELECT ua."Username",
+                        ua."DisplayName",
+                        ua."Bio",
+                        (SELECT p."Url"
+                         FROM event."Photos" p
+                         WHERE p."UserAccountId" = uf."ObserverAccountId"
+                           AND p."IsMain" = TRUE
+                         LIMIT 1),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" f
+                         WHERE f."ObserverAccountId" = ua."AccountId"),
+                        (SELECT COUNT(*)
+                         FROM event."UserFollowings" ufo
+                         WHERE ufo."TargetAccountId" = ua."AccountId"),
+                        (SELECT jsonb_agg(v) FROM event."GetUserPhotos"(uf."ObserverAccountId") v)::JSONB
+                 FROM event."UserAccount" ua
+                          LEFT JOIN event."UserFollowings" uf ON uf."ObserverAccountId" = ua."AccountId"
+                 WHERE uf."TargetAccountId" = _user_id;
+
 END
 $$;

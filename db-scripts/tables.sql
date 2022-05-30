@@ -50,3 +50,22 @@ CREATE TABLE event."Photos"
     "Url"           CHARACTER VARYING,
     "IsMain"        BOOLEAN DEFAULT FALSE
 );
+
+DROP TABLE IF EXISTS event."EventComments";
+CREATE TABLE event."EventComments"
+(
+    "CommentId"     BIGSERIAL PRIMARY KEY NOT NULL,
+    "UserAccountId" INTEGER,
+    "EventId"       INTEGER,
+    "Comment"       CHARACTER VARYING,
+    "DateCreated"   TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
+
+DROP TABLE IF EXISTS event."UserFollowings";
+CREATE TABLE event."UserFollowings"
+(
+    "Id"                BIGSERIAL PRIMARY KEY NOT NULL,
+    "ObserverAccountId" INTEGER,
+    "TargetAccountId"   INTEGER,
+    "Status"            BOOLEAN DEFAULT FALSE
+);

@@ -34,6 +34,8 @@ namespace Services.ProfileService
                     DisplayName = dbResponse?.DisplayName,
                     Bio = dbResponse?.Bio,
                     Image = dbResponse?.Image,
+                    FollowersCount = dbResponse.FollowersCount,
+                    FollowingCount = dbResponse.FollowingCount,
                     Photos = dbResponse?.Photos
                 }
             };
