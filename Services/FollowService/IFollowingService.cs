@@ -8,6 +8,6 @@ namespace Services.FollowService
     {
         Task<ServiceResponse> FollowOrUnfollowUser(string observerUsername, string targetUsername, StringBuilder logs);
         Task<List<Followers>> GetUserFollowers(string username);
-        Task<List<Following>> GetUserFollowings(string username);
+        Task<List<Followings>> GetUserFollowings(string username);
     }
 }

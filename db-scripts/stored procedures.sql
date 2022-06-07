@@ -76,12 +76,19 @@ CREATE FUNCTION event."GetEventDetails"("reqEventUuid" CHARACTER VARYING)
                 "Date"         TIMESTAMP WITHOUT TIME ZONE,
                 "HostUsername" CHARACTER VARYING,
                 "IsCancelled"  BOOLEAN,
-                "Attendees"    JSONB
+                "Attendees"    JSONB,
+                "Likes"        BIGINT,
+                "Comments"     BIGINT
             )
     LANGUAGE plpgsql
 AS
 $$
+DECLARE
+    _event_id INTEGER;
 BEGIN
+
+    SELECT e."Id"::INTEGER INTO _event_id FROM event."Events" e WHERE e."EventUuid" = "reqEventUuid" LIMIT 1;
+
     RETURN QUERY SELECT ev."EventUuid",
                         ev."Title",
                         ev."Description",
@@ -91,11 +98,13 @@ BEGIN
                         ev."Date",
                         ua."Username",
                         ev."IsCancelled",
-                        (SELECT jsonb_agg(v) FROM event."GetEventAttendees"(ea."EventId"::INTEGER) v)::JSONB
+                        (SELECT jsonb_agg(v) FROM event."GetEventAttendees"(ea."EventId"::INTEGER) v)::JSONB,
+                        (SELECT COUNT(l."Id") FROM event."EventLikes" l WHERE l."EventId" = _event_id),
+                        (SELECT COUNT(ec."CommentId") FROM event."EventComments" ec WHERE ec."EventId" = _event_id)
                  FROM event."Events" ev
                           LEFT JOIN event."EventAttendees" ea ON ev."Id" = ea."EventId"
                           LEFT JOIN event."UserAccount" ua ON ua."AccountId" = ea."UserAccountId"
-                 WHERE ev."EventUuid" = "reqEventUuid"
+                 WHERE ev."Id"::INTEGER = _event_id
                  LIMIT 1;
 END
 $$;
@@ -599,10 +608,18 @@ CREATE FUNCTION event."GetUserProfile"("reqUsername" CHARACTER VARYING)
 AS
 $$
 DECLARE
-    _user_id INTEGER;
+    _user_id    INTEGER;
+    _profile_id INTEGER;
 BEGIN
 
-    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+    SELECT u."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    SELECT ff."ObserverAccountId"
+    INTO _profile_id
+    FROM event."UserAccount" uc
+             LEFT JOIN event."UserFollowings" ff ON ff."TargetAccountId" = uc."AccountId"
+    WHERE uc."Username" = "reqUsername"
+    LIMIT 1;
 
     IF _user_id IS NULL THEN
         RETURN QUERY SELECT CONCAT("reqUsername",
@@ -798,6 +815,7 @@ CREATE FUNCTION event."GetUserFollowings"("reqUsername" CHARACTER VARYING)
                 "DisplayName"    CHARACTER VARYING,
                 "Bio"            CHARACTER VARYING,
                 "Image"          CHARACTER VARYING,
+                "Following"      BOOLEAN,
                 "FollowingCount" BIGINT,
                 "FollowersCount" BIGINT,
                 "Photos"         JSONB
@@ -820,6 +838,7 @@ BEGIN
                          WHERE p."UserAccountId" = uf."TargetAccountId"
                            AND p."IsMain" = TRUE
                          LIMIT 1),
+                        uf."Status",
                         (SELECT COUNT(*)
                          FROM event."UserFollowings" f
                          WHERE f."ObserverAccountId" = ua."AccountId"),
@@ -842,6 +861,7 @@ CREATE FUNCTION event."GetUserFollowers"("reqUsername" CHARACTER VARYING)
                 "DisplayName"    CHARACTER VARYING,
                 "Bio"            CHARACTER VARYING,
                 "Image"          CHARACTER VARYING,
+                "Following"      BOOLEAN,
                 "FollowingCount" BIGINT,
                 "FollowersCount" BIGINT,
                 "Photos"         JSONB
@@ -864,6 +884,7 @@ BEGIN
                          WHERE p."UserAccountId" = uf."ObserverAccountId"
                            AND p."IsMain" = TRUE
                          LIMIT 1),
+                        uf."Status",
                         (SELECT COUNT(*)
                          FROM event."UserFollowings" f
                          WHERE f."ObserverAccountId" = ua."AccountId"),
@@ -877,3 +898,81 @@ BEGIN
 
 END
 $$;
+
+
+DROP FUNCTION IF EXISTS event."LikeOrUnlikeEvent"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."LikeOrUnlikeEvent"("reqUsername" CHARACTER VARYING, "reqEventUuid" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Message"      CHARACTER VARYING,
+                "ResponseCode" INTEGER
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id       INTEGER;
+    _event_id      INTEGER;
+    _event_like_id INTEGER;
+    _already_liked BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    SELECT ev."Id"::INTEGER INTO _event_id FROM event."Events" ev WHERE ev."EventUuid" = "reqEventUuid" LIMIT 1;
+
+    SELECT el."Id", el."Like"
+    INTO _event_like_id, _already_liked
+    FROM event."EventLikes" el
+    WHERE el."EventId" = _event_id
+      AND el."UserAccountId" = _user_id
+      AND el."Like" = TRUE;
+
+    IF _user_id IS NULL THEN
+        RETURN QUERY SELECT 'User account does not exist, check and try again'::CHARACTER VARYING,
+                            400; -- Code 400: Not a user
+        RETURN;
+    END IF;
+
+    IF _event_id IS NULL THEN
+        RETURN QUERY SELECT 'Event does not exist, check and try again'::CHARACTER VARYING,
+                            401; -- Code 400: Event not found
+        RETURN;
+    END IF;
+
+    IF _already_liked = TRUE THEN
+        DELETE FROM event."EventLikes" WHERE "Id"::INTEGER = _event_like_id;
+        RETURN QUERY SELECT 'You unliked the event'::CHARACTER VARYING, 100; -- Code 100: Unlike event
+        RETURN;
+    END IF;
+
+    INSERT INTO event."EventLikes"("UserAccountId", "EventId", "Like") VALUES (_user_id, _event_id, TRUE);
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING, 101; -- Code 101: Event liked
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetEventLikes"(CHARACTER VARYING);
+CREATE FUNCTION event."GetEventLikes"("reqEventUuid" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Username" CHARACTER VARYING
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _event_id INTEGER;
+BEGIN
+
+    SELECT ev."Id"::INTEGER INTO _event_id FROM event."Events" ev WHERE ev."EventUuid" = "reqEventUuid" LIMIT 1;
+
+    RETURN QUERY SELECT uc."Username"
+                 FROM event."EventLikes" el
+                          LEFT JOIN event."UserAccount" uc ON uc."AccountId" = el."UserAccountId"
+                 WHERE el."EventId" = _event_id
+                 ORDER BY el."DateCreated";
+END
+$$;
+

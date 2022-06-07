@@ -15,10 +15,12 @@ namespace DBHelper
         Task<FollowingDbResponse> FollowOrUnfollowUser(string observerUsername, string targetUsername);
         Task<List<EventComment>> GetEventComments(string eventUuid);
         Task<EventDetails?> GetEventDetails(string eventUuid);
+        Task<List<EventLikes>> GetEventLikes(string eventUuid);
         Task<List<EventsInfo>> GetEvents();
         Task<List<Followers>> GetUserFollowers(string username);
-        Task<List<Following>> GetUserFollowings(string username);
+        Task<List<Followings>> GetUserFollowings(string username);
         Task<UserProfile?> GetUserProfile(string username);
+        Task<DbResponse> LikeOrUnlikeEvent(string eventUuid, string username);
         Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber);
         Task<string> SetProfilePicture(string username, string publicId);
         Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date);

@@ -116,5 +116,24 @@ namespace Services.EventService
         }
 
         public async Task<List<EventComment>> GetEventComments(string eventUuid) => await _postgresHelper.GetEventComments(eventUuid);
+
+        public async Task<List<EventLikes>> GetEventLikes(string eventUuid) => await _postgresHelper.GetEventLikes(eventUuid);
+
+        public async Task<ServiceResponse> LikeOrUnlikeEvent(string eventUuid, string username, StringBuilder logs)
+        {
+            logs.AppendLine("-- LikeOrUnlikeEvent");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, eventUuid })}");
+
+            if(string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (string.IsNullOrWhiteSpace(eventUuid)) return new ServiceResponse { Successful = false, ResponseMessage = "Request Identifer (EventUuid) for event is required" };
+
+            var dbResponse = await _postgresHelper.LikeOrUnlikeEvent(eventUuid, username);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse.Message)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+            if (!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 100) return new ServiceResponse { Successful = true, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "You liked the event" };
+        }
     }
 }

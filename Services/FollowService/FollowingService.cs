@@ -34,7 +34,7 @@ namespace Services.FollowService
             return new ServiceResponse { Successful = true, ResponseMessage = $"You have followed {targetUsername}" };
         }
 
-        public async Task<List<Following>> GetUserFollowings(string username) => await _postgresHelper.GetUserFollowings(username);
+        public async Task<List<Followings>> GetUserFollowings(string username) => await _postgresHelper.GetUserFollowings(username);
         public async Task<List<Followers>> GetUserFollowers(string username) => await _postgresHelper.GetUserFollowers(username);
     }
 }

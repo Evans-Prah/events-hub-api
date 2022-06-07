@@ -12,5 +12,7 @@
         public string? HostUsername { get; set; }
         public bool IsCancelled { get; set; }
         public List<AttendeesProfile>? Attendees { get; set; }
+        public long Likes { get; set; }
+        public long Comments { get; set; }
     }
 }

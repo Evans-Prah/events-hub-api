@@ -69,3 +69,13 @@ CREATE TABLE event."UserFollowings"
     "TargetAccountId"   INTEGER,
     "Status"            BOOLEAN DEFAULT FALSE
 );
+
+DROP TABLE IF EXISTS event."EventLikes";
+CREATE TABLE event."EventLikes"
+(
+    "Id"            BIGSERIAL PRIMARY KEY NOT NULL,
+    "UserAccountId" INTEGER,
+    "EventId"       INTEGER,
+    "Like"          BOOLEAN DEFAULT FALSE,
+    "DateCreated"   TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
+);

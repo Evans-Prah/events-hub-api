@@ -150,6 +150,32 @@ namespace DBHelper
 
         }
 
+        public async Task<DbResponse> LikeOrUnlikeEvent(string eventUuid, string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid},
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<DbResponse>(_connectionStrings.Default, "\"LikeOrUnlikeEvent\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new DbResponse { Message = "An error occurred" };
+        }
+
+        public async Task<List<EventLikes>> GetEventLikes(string eventUuid)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter {Name = "reqEventUuid", Type = NpgsqlDbType.Varchar, Value = eventUuid}
+            };
+
+            return await _storedProcedureExecutor.ExecuteStoredProcedure<EventLikes>(_connectionStrings.Default, "\"GetEventLikes\"", parameters);
+
+        }
+
         #endregion
 
 
@@ -306,14 +332,14 @@ namespace DBHelper
             return new FollowingDbResponse { ResponseMessage = "An error occurred" };
         }
 
-        public async Task<List<Following>> GetUserFollowings(string username)
+        public async Task<List<Followings>> GetUserFollowings(string username)
         {
             var parameters = new List<StoreProcedureParameter>
             {
                 new StoreProcedureParameter {Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
             };
 
-            return await _storedProcedureExecutor.ExecuteStoredProcedure<Following>(_connectionStrings.Default, "\"GetUserFollowings\"", parameters);
+            return await _storedProcedureExecutor.ExecuteStoredProcedure<Followings>(_connectionStrings.Default, "\"GetUserFollowings\"", parameters);
 
         }
         
