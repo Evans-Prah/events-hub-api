@@ -14,3 +14,5 @@ INSERT INTO event."UserAccount"("AccountUuid", "Username", "DisplayName", "Passw
 VALUES ('bbb209d5-0b90-440a-96f7-bea5c831fa42', 'john_doe', 'John Doe', 'johnpassword', 'johndoe@test.io', '+233 222222222', 'Live life fully'),
        ('fdd5e0db-6230-4675-ab64-a9a07b6cfb26', 'jane_doe', 'Jane Doe', 'janepassword', 'janedoe@email.com', '+233 111111111', 'Anything is possible');
 
+
+

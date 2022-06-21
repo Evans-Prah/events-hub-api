@@ -322,13 +322,15 @@ $$;
 
 
 DROP FUNCTION IF EXISTS event."RegisterUser"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
-                                             CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);
+                                             CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING,
+                                             CHARACTER VARYING);
 CREATE FUNCTION event."RegisterUser"("reqAccountUuid" CHARACTER VARYING,
                                      "reqUsername" CHARACTER VARYING,
                                      "reqDisplayName" CHARACTER VARYING,
                                      "reqEmail" CHARACTER VARYING,
                                      "reqPassword" CHARACTER VARYING,
-                                     "reqPhoneNumber" CHARACTER VARYING)
+                                     "reqPhoneNumber" CHARACTER VARYING,
+                                     "reqEmailConfirmationToken" CHARACTER VARYING)
     RETURNS CHARACTER VARYING
     LANGUAGE plpgsql AS
 $$
@@ -359,11 +361,70 @@ BEGIN
     END IF;
 
     INSERT INTO event."UserAccount"("AccountUuid", "Username", "DisplayName", "Password", "Email", "PhoneNumber",
-                                    "IsActive")
+                                    "IsActive", "EmailConfirmationToken")
     VALUES ("reqAccountUuid", trim("reqUsername"), "reqDisplayName", trim("reqPassword"), "reqEmail", "reqPhoneNumber",
-            TRUE);
+            TRUE, "reqEmailConfirmationToken");
 
     RETURN '':: CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."VerifyEmail"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."VerifyEmail"("reqEmail" CHARACTER VARYING, "reqEmailConfirmationToken" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _request RECORD;
+BEGIN
+
+    SELECT uc."Email", uc."EmailConfirmationToken"
+    FROM event."UserAccount" uc
+    WHERE lower(uc."Email") = lower("reqEmail")
+    LIMIT 1
+    INTO _request;
+
+    IF _request."Email" IS NULL THEN
+        RETURN 'Email address is not associated with any account, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    IF _request."EmailConfirmationToken" != "reqEmailConfirmationToken" THEN
+        RETURN 'Could not verify email address, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    UPDATE event."UserAccount" uc SET "EmailConfirmed" = TRUE WHERE "Email" = "reqEmail";
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."ResendEmailConfirmationLink"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."ResendEmailConfirmationLink"("reqEmail" CHARACTER VARYING,
+                                                    "reqEmailConfirmationToken" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _email CHARACTER VARYING;
+BEGIN
+
+    SELECT uc."Email"
+    INTO _email
+    FROM event."UserAccount" uc
+    WHERE lower(uc."Email") = lower("reqEmail")
+    LIMIT 1;
+
+    IF _email IS NULL THEN
+        RETURN 'Email address is not associated with any account, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    UPDATE event."UserAccount" uc SET "EmailConfirmationToken" = "reqEmailConfirmationToken" WHERE "Email" = "reqEmail";
+
+    RETURN ''::CHARACTER VARYING;
 END
 $$;
 
@@ -390,7 +451,8 @@ BEGIN
            uc."AccountId",
            uc."Username",
            uc."DisplayName",
-           uc."LastLogin"
+           uc."LastLogin",
+           uc."EmailConfirmed"
     FROM event."UserAccount" uc
     WHERE lower(uc."Username") = lower("reqUsername")
       AND uc."Password" = "reqPassword"
@@ -415,6 +477,15 @@ BEGIN
         RETURN;
     END IF;
 
+    IF userRecord."EmailConfirmed" = FALSE THEN
+        RETURN QUERY SELECT 'Email not confirmed, confirm your email and sign in'::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::TIMESTAMP WITHOUT TIME ZONE;
+        RETURN;
+    END IF;
+
     UPDATE event."UserAccount" uc SET "LastLogin" = NOW() AT TIME ZONE 'UTC' WHERE "AccountId" = userRecord."AccountId";
 
     SELECT p."Url"
@@ -431,7 +502,6 @@ BEGIN
                         userRecord."LastLogin";
 END
 $$;
-
 
 
 DROP FUNCTION IF EXISTS event."UploadImage"(CHARACTER VARYING, CHARACTER VARYING, CHARACTER VARYING);

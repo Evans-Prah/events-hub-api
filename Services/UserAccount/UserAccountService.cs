@@ -1,11 +1,15 @@
 ﻿using DBHelper;
 using Entities;
 using Entities.UserAccount;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.WebUtilities;
 using Microsoft.Extensions.Configuration;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json;
+using Services.EmailService;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace Services.UserAccount
@@ -14,14 +18,18 @@ namespace Services.UserAccount
     {
         private readonly IPostgresHelper _postgresHelper;
         private readonly IConfiguration _config;
+        private readonly IHttpContextAccessor _httpContextAccessor;
+        private readonly IEmailSenderService _emailSenderService;
         private readonly string _encryption_key;
         private readonly string _jwt_encryption_key;
         private readonly double _session_timeout;
 
-        public UserAccountService(IPostgresHelper postgresHelper, IConfiguration config)
+        public UserAccountService(IPostgresHelper postgresHelper, IConfiguration config, IHttpContextAccessor httpContextAccessor, IEmailSenderService emailSenderService)
         {
             _postgresHelper = postgresHelper;
             _config = config;
+            _httpContextAccessor = httpContextAccessor;
+            _emailSenderService = emailSenderService;
             _encryption_key = _config["ENCRYPTION_KEY"];
             _jwt_encryption_key = _config["JWT_ENCRYPTION_KEY"];
             _session_timeout = Convert.ToDouble(_config["SESSION_TIMEOUT"]);
@@ -45,13 +53,67 @@ namespace Services.UserAccount
             var accountUuid = Guid.NewGuid().ToString();
             password = StringCipher.Encrypt(password, _encryption_key);
 
-            var dbResponse = await _postgresHelper.RegisterUser(accountUuid, username, displayName, password, email, phoneNumber);
+            byte[] time = BitConverter.GetBytes(DateTime.UtcNow.ToBinary());
+            byte[] key = Guid.NewGuid().ToByteArray();
+
+            var emailConfirmationToken = Convert.ToBase64String(time.Concat(key).ToArray());
+            emailConfirmationToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
+
+            var dbResponse = await _postgresHelper.RegisterUser(accountUuid, username, displayName, password, email, phoneNumber, emailConfirmationToken);
             logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
 
             if (!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
 
-            return new ServiceResponse { Successful = true, ResponseMessage = "User account registered successfully" };
+            var origin = _httpContextAccessor.HttpContext.Request.Headers["origin"];
+
+            var verifyEmailUrl = $"{origin}/api/auth/verifyEmail?token={emailConfirmationToken}&email={email}";
+            var message = $"<p>Please click the below link to verify your email address:</p><p><a href='{verifyEmailUrl}'>Click to verify email</a></p>";
+
+            await _emailSenderService.SendEmail(email, "Email Address Confirmation", message);
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "User account registered successfully, please verify email address", Data = message };
         }
+
+
+        public async Task<ServiceResponse> VerifyEmail(string email, string emailConfirmationToken, StringBuilder logs)
+        {
+            logs.AppendLine("-- VerifyEmail");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { email, emailConfirmationToken })}");
+
+            var dbResponse = await _postgresHelper.VerifyEmail(email, emailConfirmationToken);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "Email confirmation successful - you can login" };
+        }
+        
+        public async Task<ServiceResponse> ResendEmailConfirmationLink(string email,  StringBuilder logs)
+        {
+            logs.AppendLine("-- ResendEmailConfirmationLink");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { email})}");
+
+            byte[] time = BitConverter.GetBytes(DateTime.UtcNow.ToBinary());
+            byte[] key = Guid.NewGuid().ToByteArray();
+
+            var emailConfirmationToken = Convert.ToBase64String(time.Concat(key).ToArray());
+            emailConfirmationToken = WebEncoders.Base64UrlEncode(Encoding.UTF8.GetBytes(emailConfirmationToken));
+
+            var dbResponse = await _postgresHelper.ResendEmailConfirmationLink(email, emailConfirmationToken);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
+
+            var origin = _httpContextAccessor.HttpContext.Request.Headers["origin"];
+
+            var verifyEmailUrl = $"{origin}/api/auth/verifyEmail?token={emailConfirmationToken}&email={email}";
+            var message = $"<p>Please click the below link to verify your email address:</p><p><a href='{verifyEmailUrl}'>Click to verify email</a></p>";
+
+            await _emailSenderService.SendEmail(email, "Please verify email", message);
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "Email verification link resent", Data = message };
+        }
+
 
         public async Task<ServiceResponse> UserLogin(string username, string password, StringBuilder logs)
         {
@@ -85,9 +147,10 @@ namespace Services.UserAccount
             };
         }
 
+       
         private JwtInfo CreateJWTInfo(string username, string roles)
         {
-            var expiresAt = DateTime.Now.AddMinutes(_session_timeout);
+            var expiresAt = DateTime.UtcNow.AddMinutes(_session_timeout);
             var tokenHandler = new JwtSecurityTokenHandler();
             var tokenKey = Encoding.ASCII.GetBytes(_jwt_encryption_key);
             var tokenDescriptor = new SecurityTokenDescriptor
@@ -106,7 +169,13 @@ namespace Services.UserAccount
             var token = tokenHandler.CreateToken(tokenDescriptor);
             var jwtToken = tokenHandler.WriteToken(token);
             jwtToken = StringCipher.Encrypt(jwtToken, _jwt_encryption_key);
-            return new JwtInfo { Token = jwtToken, ExpiresAt = expiresAt };
+            return new JwtInfo 
+            { 
+                Token = jwtToken, 
+                ExpiresAt = expiresAt
+            };
         }
+
+        
     }
 }

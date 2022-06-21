@@ -6,6 +6,7 @@ using Entities.Cloudinary;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Services.CloudinaryService;
+using Services.EmailService;
 using Services.EventService;
 using Services.FileLogger;
 using Services.FollowService;
@@ -25,6 +26,7 @@ builder.Services.AddScoped<IFileLogger, FileLogger>();
 
 builder.Services.AddSingleton<IStoredProcedureExecutor, NpgsqlStoredProcedureExecutor>();
 builder.Services.AddSingleton<IPostgresHelper, PostgresHelper>();
+builder.Services.AddSingleton<IEmailSenderService, EmailSenderService>();
 builder.Services.AddSingleton<IEventService, EventService>();
 builder.Services.AddSingleton<IUserAccountService, UserAccountService>();
 builder.Services.AddScoped<ICloudinaryUploadService, CloudinaryUploadService>();
@@ -33,6 +35,7 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IFollowingService, FollowingService>();
 builder.Services.Configure<CloudinarySettings>(builder.Configuration.GetSection("Cloudinary"));
 
+builder.Services.AddHttpContextAccessor();
 builder.Services.AddCors();
 builder.Services.AddDistributedMemoryCache();
 builder.Services.AddSession();

@@ -154,7 +154,7 @@ namespace API.Controllers
             catch (Exception e)
             {
                 _logger.LogError(e);
-                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while deleting the event, try again later." };
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while processing the request, try again later." };
             }
         }
         

@@ -21,12 +21,14 @@ namespace DBHelper
         Task<List<Followings>> GetUserFollowings(string username);
         Task<UserProfile?> GetUserProfile(string username);
         Task<DbResponse> LikeOrUnlikeEvent(string eventUuid, string username);
-        Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber);
+        Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber, string emailConfirmationToken);
+        Task<string> ResendEmailConfirmationLink(string email, string emailConfirmationToken);
         Task<string> SetProfilePicture(string username, string publicId);
         Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date);
         Task<DbResponse> UpdateEventAttendance(string eventUuid, string username);
         Task<string> UpdateUserProfile(string username, string displayName, string bio);
         Task<ImageUploadDbResponse> UploadImage(string username, string publicId, string file);
         Task<LoginResponse> UserLogin(string username, string password);
+        Task<string> VerifyEmail(string email, string emailConfirmationToken);
     }
 }

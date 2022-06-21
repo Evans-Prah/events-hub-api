@@ -9,7 +9,7 @@ using System.Text;
 
 namespace API.Controllers
 {
-    [AllowAnonymous]
+    
     [Route("api/auth")]
     [ApiController]
     public class AuthenticationController : ControllerBase
@@ -23,6 +23,7 @@ namespace API.Controllers
             _logger = logger;
         }
 
+        [AllowAnonymous]
         [HttpPost("[action]")]
         public async Task<ApiResponse> Register([FromBody] AccountRegisterPayload payload)
         {
@@ -35,7 +36,7 @@ namespace API.Controllers
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
 
-                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage, Data = process.Data };
             }
             catch (Exception e)
             {
@@ -44,6 +45,52 @@ namespace API.Controllers
             }
         }
 
+        [AllowAnonymous]
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> VerifyEmail(string email, string token)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var process = await _accountService.VerifyEmail(email, token, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while confirming email address, try again later." };
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpGet("[action]")]
+        public async Task<ApiResponse> ResendEmailConfirmationLink(string email)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var process = await _accountService.ResendEmailConfirmationLink(email, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage, Data = process.Data };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while resending email verification link, try again later." };
+            }
+        }
+
+
+        [AllowAnonymous]
         [HttpPost("[action]")]
         public async Task<ApiResponse> Login([FromBody] AccountLoginPayload payload)
         {
@@ -66,5 +113,8 @@ namespace API.Controllers
                 return new ApiResponse { Success = false, ResponseMessage = "A system error occured while authenticating user, try again later." };
             }
         }
+        
+
+       
     }
 }

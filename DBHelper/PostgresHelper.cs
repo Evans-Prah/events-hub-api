@@ -181,7 +181,7 @@ namespace DBHelper
 
         #region UserAccount
 
-        public async Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber)
+        public async Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber, string emailConfirmationToken)
         {
             string response = "";
 
@@ -193,9 +193,46 @@ namespace DBHelper
                 new StoreProcedureParameter { Name = "reqPassword", Type = NpgsqlDbType.Varchar, Value = password},
                 new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
                 new StoreProcedureParameter { Name = "reqPhoneNumber", Type = NpgsqlDbType.Varchar, Value = phoneNumber},
+                new StoreProcedureParameter { Name = "reqEmailConfirmationToken", Type = NpgsqlDbType.Varchar, Value = emailConfirmationToken},
             };
 
             await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"RegisterUser\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+        
+        public async Task<string> VerifyEmail(string email, string emailConfirmationToken)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqEmailConfirmationToken", Type = NpgsqlDbType.Varchar, Value = emailConfirmationToken},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"VerifyEmail\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+        
+        public async Task<string> ResendEmailConfirmationLink(string email, string emailConfirmationToken)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqEmailConfirmationToken", Type = NpgsqlDbType.Varchar, Value = emailConfirmationToken},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"ResendEmailConfirmationLink\"", parameters, (reader) =>
             {
                 if (reader.Read()) response = reader.GetString(0);
             });
@@ -218,7 +255,9 @@ namespace DBHelper
             return new LoginResponse { ResponseMessage = "An error occurred" };
         }
 
+
         #endregion
+
 
         #region ImageUpload
 

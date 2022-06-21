@@ -19,17 +19,19 @@ CREATE TABLE event."Events"
 DROP TABLE IF EXISTS event."UserAccount";
 CREATE TABLE event."UserAccount"
 (
-    "AccountId"   BIGSERIAL PRIMARY KEY NOT NULL,
-    "AccountUuid" CHARACTER VARYING     NOT NULL,
-    "Username"    CHARACTER VARYING     NOT NULL,
-    "DisplayName" CHARACTER VARYING     NOT NULL,
-    "Password"    CHARACTER VARYING     NOT NULL,
-    "Email"       CHARACTER VARYING     NOT NULL,
-    "PhoneNumber" CHARACTER VARYING,
-    "Bio"         CHARACTER VARYING,
-    "LastLogin"   TIMESTAMP WITHOUT TIME ZONE,
-    "IsActive"    BOOLEAN                     DEFAULT TRUE,
-    "DateCreated" TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
+    "AccountId"              BIGSERIAL PRIMARY KEY NOT NULL,
+    "AccountUuid"            CHARACTER VARYING     NOT NULL,
+    "Username"               CHARACTER VARYING     NOT NULL,
+    "DisplayName"            CHARACTER VARYING     NOT NULL,
+    "Password"               CHARACTER VARYING     NOT NULL,
+    "Email"                  CHARACTER VARYING     NOT NULL,
+    "PhoneNumber"            CHARACTER VARYING,
+    "Bio"                    CHARACTER VARYING,
+    "LastLogin"              TIMESTAMP WITHOUT TIME ZONE,
+    "IsActive"               BOOLEAN                     DEFAULT TRUE,
+    "EmailConfirmed"         BOOLEAN                     DEFAULT FALSE,
+    "EmailConfirmationToken" CHARACTER VARYING,
+    "DateCreated"            TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 
 
@@ -76,6 +78,10 @@ CREATE TABLE event."EventLikes"
     "Id"            BIGSERIAL PRIMARY KEY NOT NULL,
     "UserAccountId" INTEGER,
     "EventId"       INTEGER,
-    "Like"          BOOLEAN DEFAULT FALSE,
+    "Like"          BOOLEAN                     DEFAULT FALSE,
     "DateCreated"   TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
+
+
+
+
