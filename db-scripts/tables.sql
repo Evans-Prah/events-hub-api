@@ -35,6 +35,7 @@ CREATE TABLE event."UserAccount"
 );
 
 
+
 DROP TABLE IF EXISTS event."EventAttendees";
 CREATE TABLE event."EventAttendees"
 (
@@ -60,6 +61,7 @@ CREATE TABLE event."EventComments"
     "UserAccountId" INTEGER,
     "EventId"       INTEGER,
     "Comment"       CHARACTER VARYING,
+    "ParentId"      INTEGER,
     "DateCreated"   TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 
@@ -82,6 +84,15 @@ CREATE TABLE event."EventLikes"
     "DateCreated"   TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
 );
 
+DROP TABLE IF EXISTS event."EventCommentLikes";
+CREATE TABLE event."EventCommentLikes"
+(
+    "Id"             BIGSERIAL PRIMARY KEY NOT NULL,
+    "UserAccountId"  INTEGER,
+    "EventCommentId" INTEGER,
+    "Like"           BOOLEAN                     DEFAULT FALSE,
+    "DateCreated"    TIMESTAMP WITHOUT TIME ZONE DEFAULT (NOW() AT TIME ZONE 'UTC')
+);
 
 
 

@@ -785,12 +785,137 @@ END
 $$;
 
 
+DROP FUNCTION IF EXISTS event."ReplyOnComment"(CHARACTER VARYING, INTEGER, CHARACTER VARYING);
+CREATE FUNCTION event."ReplyOnComment"("reqUsername" CHARACTER VARYING, "reqCommentId" INTEGER,
+                                       "reqReply" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id    INTEGER;
+    _comment_id INTEGER;
+    _event_id   INTEGER;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    SELECT ec."CommentId"::INTEGER, ec."EventId"
+    INTO _comment_id, _event_id
+    FROM event."EventComments" ec
+    WHERE ec."CommentId" = "reqCommentId"
+    LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN 'User account does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    IF _comment_id IS NULL THEN
+        RETURN 'Comment does not exist, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    INSERT INTO event."EventComments"("UserAccountId", "EventId", "Comment", "ParentId")
+    VALUES (_user_id, _event_id, "reqReply", _comment_id);
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."LikeOrUnlikeComment"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."LikeOrUnlikeComment"("reqUsername" CHARACTER VARYING, "reqEventCommentId" INTEGER)
+    RETURNS TABLE
+            (
+                "Message"      CHARACTER VARYING,
+                "ResponseCode" INTEGER
+            )
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _user_id               INTEGER;
+    _event_comment_id      INTEGER;
+    _event_comment_like_id INTEGER;
+    _already_liked         BOOLEAN;
+BEGIN
+
+    SELECT U."AccountId"::INTEGER INTO _user_id FROM event."UserAccount" u WHERE u."Username" = "reqUsername" LIMIT 1;
+
+    IF _user_id IS NULL THEN
+        RETURN QUERY SELECT 'User account does not exist, check and try again'::CHARACTER VARYING,
+                            400; -- Code 400: Not a user
+        RETURN;
+    END IF;
+
+    SELECT ec."CommentId"::INTEGER
+    INTO _event_comment_id
+    FROM event."EventComments" ec
+    WHERE ec."CommentId"::INTEGER = "reqEventCommentId"
+    LIMIT 1;
+
+    IF _event_comment_id IS NULL THEN
+        RETURN QUERY SELECT 'Comment does not exist, check and try again'::CHARACTER VARYING,
+                            401; -- Code 400: Comment not found
+        RETURN;
+    END IF;
+
+    SELECT ecl."Id", ecl."Like"
+    INTO _event_comment_like_id, _already_liked
+    FROM event."EventCommentLikes" ecl
+    WHERE ecl."EventCommentId" = _event_comment_id
+      AND ecl."UserAccountId" = _user_id
+      AND ecl."Like" = TRUE;
+
+    IF _already_liked = TRUE THEN
+        DELETE FROM event."EventCommentLikes" WHERE "Id"::INTEGER = _event_comment_like_id;
+        RETURN QUERY SELECT 'You unliked the comment'::CHARACTER VARYING, 100; -- Code 100: Unlike event
+        RETURN;
+    END IF;
+
+    INSERT INTO event."EventCommentLikes"("UserAccountId", "EventCommentId", "Like")
+    VALUES (_user_id, _event_comment_id, TRUE);
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING, 101; -- Code 101: Comment liked
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."GetCommentLiker"(INTEGER);
+CREATE FUNCTION event."GetCommentLiker"("reqCommentId" INTEGER)
+    RETURNS TABLE
+            (
+                "LikerUsername"    CHARACTER VARYING,
+                "LikerDisplayName" CHARACTER VARYING,
+                "MainPhoto"        CHARACTER VARYING
+            )
+    LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT uc."Username",
+                        uc."DisplayName",
+                        (SELECT ph."Url"
+                         FROM event."Photos" ph
+                         WHERE ph."UserAccountId" = ecl."UserAccountId"
+                           AND ph."IsMain" = TRUE
+                         LIMIT 1)
+                 FROM event."EventCommentLikes" ecl
+                          LEFT JOIN event."UserAccount" uc ON uc."AccountId" = ecl."UserAccountId"
+                 WHERE ecl."EventCommentId" = "reqCommentId";
+END
+$$;
+
+
 DROP FUNCTION IF EXISTS event."GetEventComments"(CHARACTER VARYING);
 CREATE FUNCTION event."GetEventComments"("reqEventUuid" CHARACTER VARYING)
     RETURNS TABLE
             (
-                "Author"  CHARACTER VARYING,
-                "Comment" CHARACTER VARYING
+                "CommentId"     INTEGER,
+                "Author"        CHARACTER VARYING,
+                "Comment"       CHARACTER VARYING,
+                "Replies"       JSONB,
+                "NumberOfLikes" BIGINT,
+                "Likes"         JSONB
             )
     LANGUAGE plpgsql
 AS
@@ -801,12 +926,48 @@ BEGIN
 
     SELECT ev."Id"::INTEGER INTO _event_id FROM event."Events" ev WHERE ev."EventUuid" = "reqEventUuid" LIMIT 1;
 
-    RETURN QUERY SELECT uc."Username",
-                        ec."Comment"
+    RETURN QUERY SELECT ec."CommentId"::INTEGER,
+                        uc."Username",
+                        ec."Comment",
+                        (SELECT DISTINCT jsonb_agg(v) FROM event."GetCommentReplies"(ec."CommentId"::INTEGER) v)::JSONB,
+                        (SELECT COUNT(*) FROM event."EventCommentLikes" li WHERE li."EventCommentId" = ec."CommentId"),
+                        (SELECT jsonb_agg(v) FROM event."GetCommentLiker"(ec."CommentId"::INTEGER) v)::JSONB
                  FROM event."EventComments" ec
                           LEFT JOIN event."UserAccount" uc ON uc."AccountId" = ec."UserAccountId"
                  WHERE ec."EventId" = _event_id
+                   AND ec."ParentId" IS NULL
                  ORDER BY ec."DateCreated";
+END
+$$;
+
+DROP FUNCTION IF EXISTS event."GetCommentReplies"(INTEGER);
+CREATE FUNCTION event."GetCommentReplies"("reqCommentId" INTEGER)
+    RETURNS TABLE
+            (
+                "RepliedByUsername"    CHARACTER VARYING,
+                "RepliedByDisplayName" CHARACTER VARYING,
+                "MainPhoto"            CHARACTER VARYING,
+                "Reply"                CHARACTER VARYING,
+                "NumberOfLikes"        BIGINT,
+                "Likes"                JSONB
+            )
+    LANGUAGE plpgsql
+AS
+$$
+BEGIN
+    RETURN QUERY SELECT uc."Username",
+                        uc."DisplayName",
+                        (SELECT ph."Url"
+                         FROM event."Photos" ph
+                         WHERE ph."UserAccountId" = ec."UserAccountId"
+                           AND ph."IsMain" = TRUE
+                         LIMIT 1),
+                        ec."Comment",
+                        (SELECT COUNT(*) FROM event."EventCommentLikes" li WHERE li."EventCommentId" = ec."CommentId"),
+                        (SELECT jsonb_agg(v) FROM event."GetCommentLiker"(ec."CommentId"::INTEGER) v)::JSONB
+                 FROM event."EventComments" ec
+                          LEFT JOIN event."UserAccount" uc ON uc."AccountId" = ec."UserAccountId"
+                 WHERE ec."ParentId" = "reqCommentId";
 END
 $$;
 

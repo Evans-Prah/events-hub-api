@@ -164,6 +164,21 @@ namespace DBHelper
 
             return new DbResponse { Message = "An error occurred" };
         }
+        
+        public async Task<DbResponse> LikeOrUnlikeComment(int eventCommentId, string username)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEventCommentId", Type = NpgsqlDbType.Integer, Value = eventCommentId},
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username}
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<DbResponse>(_connectionStrings.Default, "\"LikeOrUnlikeComment\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new DbResponse { Message = "An error occurred" };
+        }
 
         public async Task<List<EventLikes>> GetEventLikes(string eventUuid)
         {
@@ -174,6 +189,25 @@ namespace DBHelper
 
             return await _storedProcedureExecutor.ExecuteStoredProcedure<EventLikes>(_connectionStrings.Default, "\"GetEventLikes\"", parameters);
 
+        }
+
+        public async Task<string> ReplyOnComment(string username, int commentId, string reply)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqUsername", Type = NpgsqlDbType.Varchar, Value = username},
+                new StoreProcedureParameter { Name = "reqCommentId", Type = NpgsqlDbType.Integer, Value = commentId},
+                new StoreProcedureParameter { Name = "reqReply", Type = NpgsqlDbType.Varchar, Value = reply},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"ReplyOnComment\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
         }
 
         #endregion

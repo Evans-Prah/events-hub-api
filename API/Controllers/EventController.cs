@@ -169,7 +169,7 @@ namespace API.Controllers
                 var currentUser = SessionHelper.GetCurrentUser(HttpContext);
                 if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
 
-                var process = await _eventService.AddEventComment(payload.Username, payload.EventUuid, payload.Comment, logs);
+                var process = await _eventService.AddEventComment(currentUser.Username, payload.EventUuid, payload.Comment, logs);
 
                 if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage, Data = process.Data };
 
@@ -238,7 +238,55 @@ namespace API.Controllers
             catch (Exception e)
             {
                 _logger.LogError(e);
-                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while deleting the event, try again later." };
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while processing the request, try again later." };
+            }
+        }
+        
+        [HttpPost("[action]/{eventCommentId}")]
+        public async Task<ApiResponse> LikeOrUnlikeComment(int eventCommentId)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.LikeOrUnlikeComment(eventCommentId, currentUser.Username, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage, Data = process.Data };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while processing the request, try again later." };
+            }
+        }
+
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> ReplyOnComment([FromBody] ReplyCommentPayload payload)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var currentUser = SessionHelper.GetCurrentUser(HttpContext);
+                if (currentUser == null) return new ApiResponse { Success = false, ResponseMessage = "Unauthorized request." };
+
+                var process = await _eventService.ReplyOnComment(currentUser.Username, payload.CommentId, payload.Reply, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage, Data = process.Data };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while commenting on the event, try again later." };
             }
         }
     }

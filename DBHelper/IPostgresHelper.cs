@@ -20,8 +20,10 @@ namespace DBHelper
         Task<List<Followers>> GetUserFollowers(string username);
         Task<List<Followings>> GetUserFollowings(string username);
         Task<UserProfile?> GetUserProfile(string username);
+        Task<DbResponse> LikeOrUnlikeComment(int eventCommentId, string username);
         Task<DbResponse> LikeOrUnlikeEvent(string eventUuid, string username);
         Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber, string emailConfirmationToken);
+        Task<string> ReplyOnComment(string username, int commentId, string reply);
         Task<string> ResendEmailConfirmationLink(string email, string emailConfirmationToken);
         Task<string> SetProfilePicture(string username, string publicId);
         Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date);

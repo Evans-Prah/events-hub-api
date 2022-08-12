@@ -135,5 +135,39 @@ namespace Services.EventService
 
             return new ServiceResponse { Successful = true, ResponseMessage = "You liked the event" };
         }
+        
+        public async Task<ServiceResponse> LikeOrUnlikeComment(int eventCommentId, string username, StringBuilder logs)
+        {
+            logs.AppendLine("-- LikeOrUnlikeComment");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { eventCommentId, username })}");
+
+            if(string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (eventCommentId < 1) return new ServiceResponse { Successful = false, ResponseMessage = "Event Comment Id is required" };
+
+            var dbResponse = await _postgresHelper.LikeOrUnlikeComment(eventCommentId, username);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse.Message)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+            if (!string.IsNullOrWhiteSpace(dbResponse.Message) && dbResponse.ResponseCode == 100) return new ServiceResponse { Successful = true, ResponseMessage = dbResponse.Message, Data = dbResponse.ResponseCode };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "Comment liked" };
+        }
+
+        public async Task<ServiceResponse> ReplyOnComment(string username, int commentId, string reply, StringBuilder logs)
+        {
+            logs.AppendLine("-- AddEventComment");
+            logs.AppendLine($"Payload: {JsonConvert.SerializeObject(new { username, commentId, reply })}");
+
+            if (string.IsNullOrWhiteSpace(username)) return new ServiceResponse { Successful = false, ResponseMessage = "Username is required" };
+            if (commentId < 1) return new ServiceResponse { Successful = false, ResponseMessage = "Comment Id for event is required" };
+            if (string.IsNullOrWhiteSpace(reply)) return new ServiceResponse { Successful = false, ResponseMessage = "Comment is required" };
+
+            var dbResponse = await _postgresHelper.ReplyOnComment(username, commentId, reply);
+            logs.AppendLine($"DB Response: {JsonConvert.SerializeObject(dbResponse)}");
+
+            if (!string.IsNullOrWhiteSpace(dbResponse)) return new ServiceResponse { Successful = false, ResponseMessage = dbResponse };
+
+            return new ServiceResponse { Successful = true, ResponseMessage = "Replied to comment" };
+        }
     }
 }
