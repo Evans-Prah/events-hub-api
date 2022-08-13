@@ -67,9 +67,23 @@ namespace Services.UserAccount
             var origin = _httpContextAccessor.HttpContext.Request.Headers["origin"];
 
             var verifyEmailUrl = $"{origin}/api/auth/verifyEmail?token={emailConfirmationToken}&email={email}";
-            var message = $"<p>Please click the below link to verify your email address:</p><p><a href='{verifyEmailUrl}'>Click to verify email</a></p>";
 
-            await _emailSenderService.SendEmail(email, "Email Address Confirmation", message);
+            string filePath = Directory.GetCurrentDirectory() + "\\wwwroot\\Templates\\EmailTemplates\\ConfirmAccountRegistration.html";
+            StreamReader str = new StreamReader(filePath);
+            string mailText = str.ReadToEnd();
+            str.Close();
+
+            mailText = mailText
+                              .Replace("[TITLE]", "Confirm Account Registration")
+                              .Replace("[DATETIME]", string.Format("{0:dddd, d MMMM yyyy}", DateTime.UtcNow))
+                              .Replace("[USERNAME]", username)
+                              .Replace("[CONFIRM_EMAIL_URL]", verifyEmailUrl)
+                              .Replace("[EMAIL]", email)
+                              .Replace("[USERNAME]", username);
+
+            var message = $"Please click the link to verify your email address: {verifyEmailUrl}";
+
+            await _emailSenderService.SendEmail(email, "Confirm Account Registration", mailText);
 
             return new ServiceResponse { Successful = true, ResponseMessage = "User account registered successfully, please verify email address", Data = message };
         }
