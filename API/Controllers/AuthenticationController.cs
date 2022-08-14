@@ -114,7 +114,71 @@ namespace API.Controllers
             }
         }
         
+        [AllowAnonymous]
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> ForgotPassword(string email)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
 
-       
+            try
+            {
+                var process = await _accountService.ForgotPassword(email, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage, Data = process.Data };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while processing request, try again later." };
+            }
+        }
+
+        [AllowAnonymous]
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> VerifyPasswordReset(string email, string resetCode)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var process = await _accountService.VerifyPasswordReset(email, resetCode, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while confirming email address, try again later." };
+            }
+        }
+        
+        [AllowAnonymous]
+        [HttpPost("[action]")]
+        public async Task<ApiResponse> ResetPassword(string email, string newPassword)
+        {
+            StringBuilder logs = new();
+            logs.AppendLine($"Request @ {DateTime.Now}, Path: {Request.Path}");
+
+            try
+            {
+                var process = await _accountService.ResetPassword(email, newPassword, logs);
+
+                if (!process.Successful) return new ApiResponse { Success = false, ResponseMessage = process.ResponseMessage };
+
+                return new ApiResponse { Success = true, ResponseMessage = process.ResponseMessage };
+            }
+            catch (Exception e)
+            {
+                _logger.LogError(e);
+                return new ApiResponse { Success = false, ResponseMessage = "A system error occured while resetting password, try again later." };
+            }
+        }
+
     }
 }

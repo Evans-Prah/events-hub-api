@@ -821,7 +821,6 @@ BEGIN
 END
 $$;
 
-
 DROP FUNCTION IF EXISTS event."LikeOrUnlikeComment"(CHARACTER VARYING, CHARACTER VARYING);
 CREATE FUNCTION event."LikeOrUnlikeComment"("reqUsername" CHARACTER VARYING, "reqEventCommentId" INTEGER)
     RETURNS TABLE
@@ -879,7 +878,6 @@ BEGIN
 END
 $$;
 
-
 DROP FUNCTION IF EXISTS event."GetCommentLiker"(INTEGER);
 CREATE FUNCTION event."GetCommentLiker"("reqCommentId" INTEGER)
     RETURNS TABLE
@@ -904,7 +902,6 @@ BEGIN
                  WHERE ecl."EventCommentId" = "reqCommentId";
 END
 $$;
-
 
 DROP FUNCTION IF EXISTS event."GetEventComments"(CHARACTER VARYING);
 CREATE FUNCTION event."GetEventComments"("reqEventUuid" CHARACTER VARYING)
@@ -971,7 +968,6 @@ BEGIN
 END
 $$;
 
-
 DROP FUNCTION IF EXISTS event."FollowOrUnfollowUser"(CHARACTER VARYING, CHARACTER VARYING);
 CREATE FUNCTION event."FollowOrUnfollowUser"("reqObserverUsername" CHARACTER VARYING,
                                              "reqTargetUsername" CHARACTER VARYING)
@@ -1037,7 +1033,6 @@ BEGIN
 END
 $$;
 
-
 DROP FUNCTION IF EXISTS event."GetUserFollowings"(CHARACTER VARYING);
 CREATE FUNCTION event."GetUserFollowings"("reqUsername" CHARACTER VARYING)
     RETURNS TABLE
@@ -1082,7 +1077,6 @@ BEGIN
                  WHERE uf."ObserverAccountId" = _user_id;
 END
 $$;
-
 
 DROP FUNCTION IF EXISTS event."GetUserFollowers"(CHARACTER VARYING);
 CREATE FUNCTION event."GetUserFollowers"("reqUsername" CHARACTER VARYING)
@@ -1129,7 +1123,6 @@ BEGIN
 
 END
 $$;
-
 
 DROP FUNCTION IF EXISTS event."LikeOrUnlikeEvent"(CHARACTER VARYING, CHARACTER VARYING);
 CREATE FUNCTION event."LikeOrUnlikeEvent"("reqUsername" CHARACTER VARYING, "reqEventUuid" CHARACTER VARYING)
@@ -1183,7 +1176,6 @@ BEGIN
 END
 $$;
 
-
 DROP FUNCTION IF EXISTS event."GetEventLikes"(CHARACTER VARYING);
 CREATE FUNCTION event."GetEventLikes"("reqEventUuid" CHARACTER VARYING)
     RETURNS TABLE
@@ -1207,3 +1199,133 @@ BEGIN
 END
 $$;
 
+DROP FUNCTION IF EXISTS event."ForgotPassword"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."ForgotPassword"("reqEmail" CHARACTER VARYING, "reqPasswordResetCode" CHARACTER VARYING)
+    RETURNS TABLE
+            (
+                "Message"         CHARACTER VARYING,
+                "Username"        CHARACTER VARYING,
+                "Email"           CHARACTER VARYING,
+                "ResetCode"       CHARACTER VARYING,
+                "ResetCodeExpiry" CHARACTER VARYING
+            )
+    LANGUAGE plpgsql
+AS
+
+$$
+DECLARE
+    userRecord      RECORD;
+    resetCodeExpiry CHARACTER VARYING;
+BEGIN
+
+    SELECT uc."AccountId", uc."Username", uc."Email", uc."IsActive", uc."EmailConfirmed"
+    FROM event."UserAccount" uc
+    WHERE uc."Email" = "reqEmail"
+    LIMIT 1
+    INTO userRecord;
+
+    IF userRecord."IsActive" = FALSE THEN
+        RETURN QUERY SELECT 'Sorry, your account has been disabled. Contact support for assistance.'::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING;
+        RETURN;
+    END IF;
+
+    IF userRecord."EmailConfirmed" = FALSE THEN
+        RETURN QUERY SELECT 'Sorry, you need to confirm your email first. Request for email confirmation link.'::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING;
+        RETURN;
+    END IF;
+
+    IF userRecord."Email" IS NULL THEN
+        RETURN QUERY SELECT 'Sorry, we could not find a registered user with that email.'::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING,
+                            NULL::CHARACTER VARYING;
+        RETURN;
+    END IF;
+
+    UPDATE event."UserAccount" u
+    SET "PasswordResetCode"       = "reqPasswordResetCode",
+        "PasswordResetCodeExpiry" = NOW() AT TIME ZONE 'UTC' + INTERVAL '24 hour'
+        --"PasswordResetCodeExpiry" = NOW() AT TIME ZONE 'UTC' + (2 * INTERVAL '1 minute')
+    WHERE "AccountId" = userRecord."AccountId"
+    RETURNING u."PasswordResetCodeExpiry" INTO resetCodeExpiry;
+
+    RETURN QUERY SELECT ''::CHARACTER VARYING,
+                        userRecord."Username",
+                        userRecord."Email",
+                        "reqPasswordResetCode",
+                        resetCodeExpiry;
+
+END
+$$;
+
+DROP FUNCTION IF EXISTS event."VerifyPasswordReset"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."VerifyPasswordReset"("reqEmail" CHARACTER VARYING, "reqPasswordResetCode" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _request RECORD;
+BEGIN
+
+    SELECT uc."Email", uc."PasswordResetCode", uc."PasswordResetCodeExpiry"
+    FROM event."UserAccount" uc
+    WHERE lower(uc."Email") = lower("reqEmail")
+    LIMIT 1
+    INTO _request;
+
+    IF _request."Email" IS NULL THEN
+        RETURN 'Sorry, we could not find a registered user with that email.'::CHARACTER VARYING;
+    END IF;
+
+    IF _request."PasswordResetCode" != "reqPasswordResetCode" THEN
+        RETURN 'Could not verify password reset code - invalid code provided, check and try again'::CHARACTER VARYING;
+    END IF;
+
+    IF _request."PasswordResetCodeExpiry" < NOW() AT TIME ZONE 'UTC' THEN
+        RETURN 'Password reset code has expired. Request for a new reset code'::CHARACTER VARYING;
+    END IF;
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;
+
+
+DROP FUNCTION IF EXISTS event."ResetPassword"(CHARACTER VARYING, CHARACTER VARYING);
+CREATE FUNCTION event."ResetPassword"("reqEmail" CHARACTER VARYING, "reqNewPassword" CHARACTER VARYING)
+    RETURNS CHARACTER VARYING
+    LANGUAGE plpgsql
+AS
+$$
+DECLARE
+    _request RECORD;
+BEGIN
+
+    SELECT uc."Email", uc."Password"
+    FROM event."UserAccount" uc
+    WHERE uc."Email" = "reqEmail"
+    LIMIT 1
+    INTO _request;
+
+    IF _request."Email" IS NULL THEN
+        RETURN 'Sorry, we could not find a registered user with that email.'::CHARACTER VARYING;
+    END IF;
+
+    IF _request."Password" IS NOT NULL AND _request."Password" = "reqNewPassword" THEN
+        RETURN 'Your new password should be different from previous ones. Try a different password'::CHARACTER VARYING;
+    END IF;
+
+    UPDATE event."UserAccount" SET "Password" = "reqNewPassword" WHERE "Email" = "reqEmail";
+
+    RETURN ''::CHARACTER VARYING;
+END
+$$;

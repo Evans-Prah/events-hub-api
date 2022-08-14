@@ -13,6 +13,7 @@ namespace DBHelper
         Task<string> DeleteEvent(string username, string eventUuid);
         Task<string> DeleteImage(string username, string publicId);
         Task<FollowingDbResponse> FollowOrUnfollowUser(string observerUsername, string targetUsername);
+        Task<ForgotPasswordResponse> ForgotPassword(string email, string passwordResetCode);
         Task<List<EventComment>> GetEventComments(string eventUuid);
         Task<EventDetails?> GetEventDetails(string eventUuid);
         Task<List<EventLikes>> GetEventLikes(string eventUuid);
@@ -25,6 +26,7 @@ namespace DBHelper
         Task<string> RegisterUser(string accountUuid, string username, string displayName, string password, string email, string phoneNumber, string emailConfirmationToken);
         Task<string> ReplyOnComment(string username, int commentId, string reply);
         Task<string> ResendEmailConfirmationLink(string email, string emailConfirmationToken);
+        Task<string> ResetPassword(string email, string newPassword);
         Task<string> SetProfilePicture(string username, string publicId);
         Task<string> UpdateEvent(string username, string eventUuid, string title, string description, string category, string city, string venue, DateTime date);
         Task<DbResponse> UpdateEventAttendance(string eventUuid, string username);
@@ -32,5 +34,6 @@ namespace DBHelper
         Task<ImageUploadDbResponse> UploadImage(string username, string publicId, string file);
         Task<LoginResponse> UserLogin(string username, string password);
         Task<string> VerifyEmail(string email, string emailConfirmationToken);
+        Task<string> VerifyPasswordReset(string email, string passwordResetCode);
     }
 }

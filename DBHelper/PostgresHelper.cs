@@ -288,6 +288,57 @@ namespace DBHelper
 
             return new LoginResponse { ResponseMessage = "An error occurred" };
         }
+        
+        public async Task<ForgotPasswordResponse> ForgotPassword(string email, string passwordResetCode)
+        {
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqPasswordResetCode", Type = NpgsqlDbType.Varchar, Value = passwordResetCode},
+            };
+
+            var response = await _storedProcedureExecutor.ExecuteStoredProcedure<ForgotPasswordResponse>(_connectionStrings.Default, "\"ForgotPassword\"", parameters);
+
+            if (response.Count > 0) return response[0];
+
+            return new ForgotPasswordResponse { Message = "An error occurred" };
+        }
+
+        public async Task<string> VerifyPasswordReset(string email, string passwordResetCode)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqPasswordResetCode", Type = NpgsqlDbType.Varchar, Value = passwordResetCode},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"VerifyPasswordReset\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
+        
+        public async Task<string> ResetPassword(string email, string newPassword)
+        {
+            string response = "";
+
+            var parameters = new List<StoreProcedureParameter>
+            {
+                new StoreProcedureParameter { Name = "reqEmail", Type = NpgsqlDbType.Varchar, Value = email},
+                new StoreProcedureParameter { Name = "reqNewPassword", Type = NpgsqlDbType.Varchar, Value = newPassword},
+            };
+
+            await _storedProcedureExecutor.ExecuteStoredProcedure(_connectionStrings.Default, "\"ResetPassword\"", parameters, (reader) =>
+            {
+                if (reader.Read()) response = reader.GetString(0);
+            });
+
+            return response;
+        }
 
 
         #endregion
